@@ -99,9 +99,7 @@ final class CaptureViewModel: NSObject, ObservableObject {
             }
             let rejection = MarkerGeometry.validate(corners: corners,
                                                     frameWidth: w, frameHeight: h)
-            return CaptureResult(image: image,
-                                 corners: rejection == nil ? corners : corners,
-                                 rejection: rejection)
+            return CaptureResult(image: image, corners: corners, rejection: rejection)
         } catch {
             lastError = error.localizedDescription
             return nil

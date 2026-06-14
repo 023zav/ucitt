@@ -8,7 +8,7 @@ struct RiderInputView: View {
         Form {
             Section("Rider") {
                 Stepper(value: $flow.heightCm, in: 140...210, step: 0.5) {
-                    LabeledContent("Height", value: "\(flow.heightCm, specifier: "%.1f") cm")
+                    LabeledContent("Height", value: String(format: "%.1f cm", flow.heightCm))
                 }
             }
 

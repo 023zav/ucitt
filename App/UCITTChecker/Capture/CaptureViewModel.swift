@@ -13,8 +13,12 @@ final class CaptureViewModel: NSObject, ObservableObject {
     @Published var isSessionRunning = false
     @Published var lastError: String?
 
-    let session = AVCaptureSession()
-    private let photoOutput = AVCapturePhotoOutput()
+    // AVCaptureSession/Output are configured on `sessionQueue` (Apple's
+    // recommendation), so they must be reachable from that background, Sendable
+    // closure. They are internally thread-safe, hence `nonisolated(unsafe)`:
+    // we opt out of main-actor isolation for these two objects only.
+    nonisolated(unsafe) let session = AVCaptureSession()
+    nonisolated(unsafe) private let photoOutput = AVCapturePhotoOutput()
     private let sessionQueue = DispatchQueue(label: "ucitt.capture.session")
 
     private let detector: MarkerDetecting = VisionMarkerDetector()

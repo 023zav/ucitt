@@ -25,5 +25,5 @@ targets:
         INFOPLIST_FILE: App/UCITTChecker/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.ucitt.checker
         TARGETED_DEVICE_FAMILY: 1
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "5.0"
         GENERATE_INFOPLIST_FILE: NO

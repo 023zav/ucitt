@@ -7,6 +7,7 @@ import UCITTCore
 struct ARKitMeasureView: View {
     @EnvironmentObject private var flow: CheckFlowModel
     @StateObject private var controller = ARMeasureController()
+    @State private var showHelp = false
 
     var body: some View {
         Group {
@@ -20,6 +21,14 @@ struct ARKitMeasureView: View {
         }
         .navigationTitle("Scan")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showHelp = true } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showHelp) { LandmarkHelpView() }
         .onAppear { controller.start() }
         .onDisappear { controller.pause() }
     }
@@ -57,64 +66,80 @@ struct ARKitMeasureView: View {
 
     private var promptBar: some View {
         VStack(spacing: 4) {
-            Text(controller.active.prompt)
-                .font(.headline)
-            HStack(spacing: 8) {
-                Text("\(controller.placedCount)/\(controller.order.count) placed")
+            if controller.allPlaced {
+                Label("All 6 points placed", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                Text("Tap a point below to re-do it, or see your results.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("\(controller.activeIndex + 1)/\(controller.order.count) · \(controller.active.title)")
+                    .font(.headline)
+                Text(controller.active.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
                 if !controller.trackingNormal {
-                    Label("Move the phone to map the bike", systemImage: "move.3d")
-                        .foregroundStyle(.orange)
+                    Label("Move the phone slowly to map the bike", systemImage: "move.3d")
+                        .font(.caption).foregroundStyle(.orange)
                 }
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)
     }
 
     private var controls: some View {
-        VStack(spacing: 10) {
-            HStack {
+        VStack(spacing: 12) {
+            // Status chips: green = placed, ringed = currently selected.
+            HStack(spacing: 6) {
                 ForEach(controller.order) { landmark in
                     Button {
                         controller.select(landmark)
                     } label: {
-                        Text(landmark.shortLabel)
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 8).padding(.vertical, 6)
-                            .background(chipColor(landmark), in: Capsule())
-                            .foregroundStyle(.white)
+                        HStack(spacing: 3) {
+                            if controller.points[landmark] != nil {
+                                Image(systemName: "checkmark").font(.system(size: 9, weight: .bold))
+                            }
+                            Text(landmark.shortLabel).font(.caption2.bold())
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 6)
+                        .background(chipColor(landmark), in: Capsule())
+                        .overlay(
+                            Capsule().stroke(.white, lineWidth: landmark == controller.active ? 2 : 0)
+                        )
+                        .foregroundStyle(.white)
                     }
                 }
             }
 
-            HStack(spacing: 12) {
-                Button {
-                    controller.undoActive()
-                } label: {
-                    Label("Clear", systemImage: "arrow.uturn.backward")
-                }
-                .buttonStyle(.bordered)
+            // Primary action.
+            Button {
+                controller.captureCurrent()
+            } label: {
+                Label(controller.points[controller.active] == nil
+                      ? "Capture \(controller.active.title)"
+                      : "Re-capture \(controller.active.title)",
+                      systemImage: "scope")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
 
+            // Once everything is placed, an unmissable full-width CTA.
+            if controller.allPlaced {
                 Button {
-                    controller.captureCurrent()
+                    flow.landmark3D = controller.points
+                    flow.computeResultFromARKit()
+                    flow.advance(to: .results)
                 } label: {
-                    Label("Capture \(controller.active.shortLabel)", systemImage: "scope")
+                    Label("See results", systemImage: "arrow.right.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-
-                if controller.allPlaced {
-                    Button("Results") {
-                        flow.landmark3D = controller.points
-                        flow.computeResultFromARKit()
-                        flow.advance(to: .results)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
-                }
+                .controlSize(.large)
+                .tint(.green)
             }
         }
         .padding(12)
@@ -122,8 +147,10 @@ struct ARKitMeasureView: View {
     }
 
     private func chipColor(_ landmark: Landmark) -> Color {
-        if landmark == controller.active { return .orange }
-        return controller.points[landmark] != nil ? .green : .gray
+        // Placed wins over active, so completed points read as green (done)
+        // even while selected; the selection is shown by the white ring.
+        if controller.points[landmark] != nil { return .green }
+        return landmark == controller.active ? .orange : .gray
     }
 }
 

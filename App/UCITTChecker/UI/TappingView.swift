@@ -7,6 +7,7 @@ struct TappingView: View {
     @StateObject private var session: TapSession
     @State private var dragLocation: CGPoint?
     @State private var draggingLandmark: Landmark?
+    @State private var showHelp = false
 
     init() {
         // The model is reconstructed in onAppear from flow state; this default is
@@ -47,6 +48,14 @@ struct TappingView: View {
         }
         .navigationTitle("Place points")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showHelp = true } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showHelp) { LandmarkHelpView() }
         .onAppear {
             session.points = flow.landmarkPx
             session.advance()
@@ -66,11 +75,15 @@ struct TappingView: View {
 
     private var promptBar: some View {
         VStack(spacing: 4) {
-            Text(session.active.prompt)
+            Text("\(session.placedCount)/\(session.order.count) · \(session.active.title)")
                 .font(.headline)
-            Text("\(session.placedCount)/\(session.order.count) placed — tap to set, drag to fine-tune")
+            Text(session.active.detail)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Text("Tap to set · drag to fine-tune · ? for help")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
         .padding(10)
         .frame(maxWidth: .infinity)

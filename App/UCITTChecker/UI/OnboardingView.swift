@@ -33,6 +33,13 @@ struct OnboardingView: View {
 
                 GroupBox("How to set up") {
                     VStack(alignment: .leading, spacing: 12) {
+                        if flow.mode == .bankCardPhoto, illustration != nil {
+                            illustration!
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity)
+                                .accessibilityLabel("Where to place the bank card on the bike")
+                        }
                         ForEach(setupSteps, id: \.text) { step in
                             Label(step.text, systemImage: step.icon)
                         }
@@ -65,6 +72,11 @@ struct OnboardingView: View {
         case .arKit:
             return "Point the phone at the bike and tap each landmark in 3D. Best on Pro models with LiDAR. No reference object."
         }
+    }
+
+    /// The placement diagram, shown only once the asset has been added.
+    private var illustration: Image? {
+        UIImage(named: "CardPlacement").map(Image.init(uiImage:))
     }
 
     private struct Step { let text: String; let icon: String }

@@ -1,0 +1,29 @@
+# XcodeGen spec. Run `xcodegen generate` to produce UCITTChecker.xcodeproj.
+# The pure logic lives in the local Swift package `UCITTCore` (root Package.swift),
+# which is referenced here and is independently testable with `swift test`.
+name: UCITTChecker
+options:
+  bundleIdPrefix: com.ucitt
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  UCITTCore:
+    path: .
+
+targets:
+  UCITTChecker:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/UCITTChecker
+    dependencies:
+      - package: UCITTCore
+    settings:
+      base:
+        INFOPLIST_FILE: App/UCITTChecker/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.ucitt.checker
+        TARGETED_DEVICE_FAMILY: 1
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: NO

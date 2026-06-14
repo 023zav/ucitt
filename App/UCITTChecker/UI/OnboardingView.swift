@@ -33,12 +33,12 @@ struct OnboardingView: View {
 
                 GroupBox("How to set up") {
                     VStack(alignment: .leading, spacing: 12) {
-                        if flow.mode == .bankCardPhoto, illustration != nil {
-                            illustration!
+                        if let illustration {
+                            illustration
                                 .resizable()
                                 .scaledToFit()
                                 .frame(maxWidth: .infinity)
-                                .accessibilityLabel("Where to place the bank card on the bike")
+                                .accessibilityLabel(illustrationAccessibility)
                         }
                         ForEach(setupSteps, id: \.text) { step in
                             Label(step.text, systemImage: step.icon)
@@ -74,9 +74,19 @@ struct OnboardingView: View {
         }
     }
 
-    /// The placement diagram, shown only once the asset has been added.
+    /// The per-mode diagram, shown only once its asset has been added.
+    private var illustrationName: String {
+        flow.mode == .bankCardPhoto ? "CardPlacement" : "ARKitScan"
+    }
+
     private var illustration: Image? {
-        UIImage(named: "CardPlacement").map(Image.init(uiImage:))
+        UIImage(named: illustrationName).map(Image.init(uiImage:))
+    }
+
+    private var illustrationAccessibility: String {
+        flow.mode == .bankCardPhoto
+            ? "Where to place the bank card on the bike"
+            : "Aiming the phone at the bike to capture landmarks"
     }
 
     private struct Step { let text: String; let icon: String }

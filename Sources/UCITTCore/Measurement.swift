@@ -72,4 +72,36 @@ public extension Measurement {
             Measurement(kind: .saddleSetback, value: setback)
         ]
     }
+
+    /// Compute all five raw measurements from six gravity-aligned 3D points
+    /// (mm), as produced by the ARKit path. Horizontal measurements use
+    /// ground-plane distance; the extension height uses the vertical (gravity)
+    /// separation; the armrest angle is the inclination of the armrest line
+    /// from horizontal. Results match the 2D formulas of §5 for a side-on rig.
+    static func all(points3: [Landmark: Point3]) -> [Measurement]? {
+        guard
+            let bb = points3[.bb],
+            let tip = points3[.tip],
+            let armMid = points3[.armMid],
+            let armLead = points3[.armLead],
+            let armRear = points3[.armRear],
+            let saddleNose = points3[.saddleNose]
+        else { return nil }
+
+        let reach = tip.horizontalDistance(to: bb)
+        let height = armMid.verticalDistance(to: tip)
+        let armToTip = tip.horizontalDistance(to: armLead)
+        let run = armRear.horizontalDistance(to: armLead)
+        let rise = armRear.verticalDistance(to: armLead)
+        let angle = atan2(rise, run) * 180.0 / Double.pi
+        let setback = bb.horizontalDistance(to: saddleNose)
+
+        return [
+            Measurement(kind: .reach, value: reach),
+            Measurement(kind: .extensionHeight, value: height),
+            Measurement(kind: .armToTip, value: armToTip),
+            Measurement(kind: .armrestAngle, value: angle),
+            Measurement(kind: .saddleSetback, value: setback)
+        ]
+    }
 }

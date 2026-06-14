@@ -8,6 +8,7 @@ enum FlowStep: Hashable {
     case riderInput
     case capture
     case tapping
+    case arkit
     case results
 }
 
@@ -23,11 +24,10 @@ final class CheckFlowModel: ObservableObject {
     @Published var useSetbackOverride: Bool = false
     @Published var setbackOverrideMm: Double = 60
 
-    // Marker config (§6) — user confirms the printed size.
-    @Published var markerWidthMM: Double = 100
-    @Published var markerHeightMM: Double = 100
+    // How we get real-world scale (§6). Bank-card photo (no printing) or ARKit.
+    @Published var mode: MeasurementMode = .bankCardPhoto
 
-    // Capture output
+    // Capture output (bank-card photo mode)
     @Published var capturedImage: UIImage?
     @Published var markerCornersPx: [Point2] = []
     @Published var captureRejection: MarkerGeometry.Rejection?
@@ -35,14 +35,17 @@ final class CheckFlowModel: ObservableObject {
     // Tapping output: landmark -> pixel in the captured image's coordinate space.
     @Published var landmarkPx: [Landmark: Point2] = [:]
 
+    // ARKit mode: landmark -> gravity-aligned world point in mm.
+    @Published var landmark3D: [Landmark: Point3] = [:]
+
     // Result
     @Published var report: ResultReport?
     @Published var checkError: PositionChecker.Failure?
 
     private var checker: PositionChecker {
         PositionChecker(rules: .current,
-                        markerWidthMM: markerWidthMM,
-                        markerHeightMM: markerHeightMM)
+                        markerWidthMM: BankCard.widthMM,
+                        markerHeightMM: BankCard.heightMM)
     }
 
     func start() { path = [] } // root shows onboarding
@@ -54,9 +57,26 @@ final class CheckFlowModel: ObservableObject {
         markerCornersPx = []
         captureRejection = nil
         landmarkPx = [:]
+        landmark3D = [:]
         report = nil
         checkError = nil
         path = []
+    }
+
+    /// First flow step after rider input, depending on the chosen mode.
+    var captureStep: FlowStep {
+        mode == .arKit ? .arkit : .capture
+    }
+
+    /// ARKit path: compute the report from collected 3D landmark points.
+    func computeResultFromARKit() {
+        let override = useSetbackOverride ? setbackOverrideMm : nil
+        switch checker.check(points3: landmark3D,
+                             heightCm: heightCm,
+                             setbackOverrideMm: override) {
+        case .success(let r): report = r; checkError = nil
+        case .failure(let e): report = nil; checkError = e
+        }
     }
 
     /// All six landmarks placed?

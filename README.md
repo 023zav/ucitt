@@ -1,12 +1,20 @@
 # UCI TT Position Checker (MVP)
 
-Point a phone at a side-on time-trial bike with a printed scale marker in frame,
-tap a few landmarks, and get each UCI cockpit measurement with its margin to the
-limit.
+Point a phone at a side-on time-trial bike, mark a few landmarks, and get each
+UCI cockpit measurement with its margin to the limit. **No printing** — scale
+comes from either a bank card you already own or ARKit depth.
 
 > **Pre-check, not certification.** Target accuracy ±5–10 mm. Anything within
 > ~10 mm of a limit is flagged "borderline" and must be re-checked with proper
 > tools before a race.
+
+## Two measurement modes
+
+- **Bank card (any iPhone):** one side-on photo with a standard ISO/IEC 7810
+  card (every credit/debit/ID card is exactly 85.6 × 54 mm) in the cockpit
+  plane. A homography maps pixels → mm; you then tap the six landmarks.
+- **ARKit / LiDAR (Pro devices):** markerless. Aim the on-screen reticle at each
+  landmark and tap to capture a gravity-aligned 3D point; no reference object.
 
 ## What it measures
 
@@ -24,15 +32,21 @@ bumped when the UCI revises them.
 
 ## How it works
 
-Everything is solved in the bike's **sagittal (side) plane**, so the math is 2D:
+**Bank-card mode** is solved in the bike's **sagittal (side) plane** in 2D:
 
-1. A level, coplanar marker of known mm size is detected → four corner pixels.
+1. The card (known mm size) is detected → four corner pixels.
 2. A **homography** maps image pixels → millimetres in that plane.
 3. Tapped landmarks are pushed through the homography to mm.
 4. Distances/angles are computed in mm, then evaluated against `UCIRules`.
 
+**ARKit mode** captures each landmark as a gravity-aligned 3D point (mm).
+Horizontal measurements use ground-plane distance, vertical uses the gravity
+axis, and the armrest angle is the inclination of the armrest line — these match
+the 2D formulas for a side-on rig. Both modes share the same `ReportBuilder` /
+rules engine.
+
 The **BB trick**: the bottom-bracket axle is hidden, but it is the concentric
-center of the chainring — the user taps that.
+center of the chainring — the user marks that.
 
 ## Project layout
 
@@ -64,19 +78,20 @@ xcodegen generate          # creates UCITTChecker.xcodeproj
 open UCITTChecker.xcodeproj
 ```
 
-Build and run **on a physical iPhone** — the simulator has no camera. Screens
-follow the spec flow: Onboarding → Rider input → Capture → Guided tapping (loupe
-+ draggable points) → Results.
+Build and run **on a physical iPhone** — the simulator has no camera/ARKit.
+Flow: Onboarding (pick mode) → Rider input → Capture/Scan → Results.
 
 ## Notes / known limits
 
-- **Marker detection** uses Vision rectangle detection for a dependency-free
-  MVP. `MarkerDetecting` is a protocol — drop in an OpenCV **ArUco** detector
-  (preferred, per the spec) without touching the rest of the app.
-- **Lateral-offset caveat:** the tip and armrests sit laterally offset from the
-  marker plane. If the marker isn't coplanar with the cockpit centerline,
-  foreshortening adds error — the main accuracy limiter. v2: LiDAR depth at the
-  marker vs. each landmark to scale-correct.
-- Landmarks are placed by guided taps only; no auto-detection in the MVP.
+- **Card detection** (bank-card mode) uses Vision rectangle detection, tuned for
+  a card's aspect ratio. `MarkerDetecting` is a protocol, so a more robust
+  detector can drop in without touching the rest of the app.
+- **Lateral-offset caveat (card mode):** the tip and armrests sit laterally
+  offset from the card plane. If the card isn't coplanar with the cockpit
+  centerline, foreshortening adds error — the main accuracy limiter. ARKit mode
+  avoids this by measuring true 3D positions.
+- **ARKit accuracy** depends on tracking quality and LiDAR; treat it as the same
+  ±5–10 mm pre-check, not a certification.
+- Landmarks are placed manually (taps / reticle); no auto-detection in the MVP.
 
 See `SPEC.md` for the full brief.

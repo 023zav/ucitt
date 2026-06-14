@@ -80,35 +80,26 @@ public struct PositionChecker {
             return .failure(.missingLandmarks)
         }
 
-        // Setback used for categorisation: override wins if supplied.
-        let measuredSetback = rawMeasurements
-            .first(where: { $0.kind == .saddleSetback })?.value ?? 0
-        let setbackForCategory = setbackOverrideMm ?? measuredSetback
+        let report = ReportBuilder.build(rawMeasurements: rawMeasurements,
+                                         heightCm: heightCm,
+                                         setbackOverrideMm: setbackOverrideMm,
+                                         rules: rules)
+        return .success(report)
+    }
 
-        let decision = CategoryEngine.decide(heightCm: heightCm,
-                                             saddleSetbackMm: setbackForCategory,
-                                             rules: rules)
-
-        // If overridden, reflect the override in the reported measurement too.
-        let measurements: [Measurement]
-        if let override = setbackOverrideMm {
-            measurements = rawMeasurements.map {
-                $0.kind == .saddleSetback ? Measurement(kind: .saddleSetback, value: override) : $0
-            }
-        } else {
-            measurements = rawMeasurements
+    /// ARKit path: build a report directly from six gravity-aligned 3D landmark
+    /// points (mm). No homography or capture gate — the AR session provides
+    /// metric scale and gravity.
+    public func check(points3: [Landmark: Point3],
+                      heightCm: Double,
+                      setbackOverrideMm: Double? = nil) -> Result<ResultReport, Failure> {
+        guard let rawMeasurements = Measurement.all(points3: points3) else {
+            return .failure(.missingLandmarks)
         }
-
-        let evaluated = Evaluator.evaluate(measurements: measurements,
-                                           category: decision.category,
-                                           rules: rules)
-
-        let report = ResultReport(rulesVersion: rules.rulesVersion,
-                                  heightCm: heightCm,
-                                  category: decision.category,
-                                  categoryReason: decision.reason,
-                                  flags: decision.flags,
-                                  measurements: evaluated)
+        let report = ReportBuilder.build(rawMeasurements: rawMeasurements,
+                                         heightCm: heightCm,
+                                         setbackOverrideMm: setbackOverrideMm,
+                                         rules: rules)
         return .success(report)
     }
 }

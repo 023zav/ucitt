@@ -13,6 +13,7 @@ struct RootView: View {
                     case .riderInput: RiderInputView()
                     case .capture:    CaptureView()
                     case .tapping:    TappingView()
+                    case .arkit:      ARKitMeasureView()
                     case .results:    ResultsView()
                     }
                 }

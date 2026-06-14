@@ -32,9 +32,11 @@ struct VisionMarkerDetector: MarkerDetecting {
         let request = VNDetectRectanglesRequest()
         request.maximumObservations = 1
         request.minimumConfidence = minimumConfidence
-        request.minimumAspectRatio = 0.6   // tolerate perspective on a square
-        request.maximumAspectRatio = 1.0
-        request.quadratureTolerance = 20
+        // A bank card's short/long aspect is ~0.63; bracket it with room for
+        // perspective. (VNAspectRatio is shorter ÷ longer, 0…1.)
+        request.minimumAspectRatio = 0.5
+        request.maximumAspectRatio = 0.8
+        request.quadratureTolerance = 25
 
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         do {

@@ -41,7 +41,7 @@ struct CaptureView: View {
                 .stroke(.white.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [8]))
                 .padding(24)
             VStack {
-                Text("Bike fully side-on · marker level & sharp")
+                Text("Bike fully side-on · card level & sharp")
                     .font(.caption.bold())
                     .padding(8)
                     .background(.black.opacity(0.5), in: Capsule())
@@ -97,14 +97,14 @@ struct CaptureView: View {
     private func reason(for rejection: MarkerGeometry.Rejection) -> String {
         switch rejection {
         case .notLevel(let t):
-            return "Marker not level (tilted \(String(format: "%.1f", t))°). Re-level and retry."
+            return "Card not level (tilted \(String(format: "%.1f", t))°). Re-level and retry."
         case .tooSmall(let c):
-            return "Marker too small in frame (\(String(format: "%.0f", c))%). Move closer."
+            return "Card too small in frame (\(String(format: "%.0f", c))%). Move closer."
         case .tooMuchPerspective:
-            return "Too much perspective. Get square-on to the marker."
+            return "Too much perspective. Get square-on to the card."
         case .wrongCornerCount(let n):
-            return n == 0 ? "No marker found. Frame it fully and keep it sharp."
-                          : "Marker detection unclear. Retry."
+            return n == 0 ? "No card found. Frame it fully and keep it sharp."
+                          : "Card detection unclear. Retry."
         }
     }
 }

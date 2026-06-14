@@ -18,29 +18,24 @@ struct RiderInputView: View {
                     Stepper(value: $flow.setbackOverrideMm, in: 0...150, step: 1) {
                         LabeledContent("Setback", value: "\(Int(flow.setbackOverrideMm)) mm")
                     }
-                    Text("Use this if the saddle nose won't be cleanly visible in the photo.")
+                    Text("Use this if the saddle nose won't be cleanly visible.")
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
-                    Text("Setback will be measured from your tap on the saddle nose.")
+                    Text("Setback will be measured from your saddle-nose landmark.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
 
-            Section("Marker size") {
-                Stepper(value: $flow.markerWidthMM, in: 50...300, step: 5) {
-                    LabeledContent("Width", value: "\(Int(flow.markerWidthMM)) mm")
-                }
-                Stepper(value: $flow.markerHeightMM, in: 50...300, step: 5) {
-                    LabeledContent("Height", value: "\(Int(flow.markerHeightMM)) mm")
-                }
-                Text("Confirm this matches the printed marker exactly — it sets the scale.")
-                    .font(.footnote).foregroundStyle(.secondary)
+            Section("Mode") {
+                LabeledContent("Measuring with", value: flow.mode.displayName)
             }
         }
         .navigationTitle("Rider")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Capture") { flow.advance(to: .capture) }
+                Button(flow.mode == .arKit ? "Scan" : "Capture") {
+                    flow.advance(to: flow.captureStep)
+                }
             }
         }
     }

@@ -8,6 +8,7 @@ struct ARKitMeasureView: View {
     @EnvironmentObject private var flow: CheckFlowModel
     @StateObject private var controller = ARMeasureController()
     @State private var showHelp = false
+    @State private var magnify = false
 
     var body: some View {
         Group {
@@ -40,20 +41,60 @@ struct ARKitMeasureView: View {
 
             reticle
 
+            // Magnifier loupe over the reticle for precise aiming.
+            if magnify {
+                TimelineView(.periodic(from: .now, by: 0.08)) { _ in
+                    ReticleLoupe(snapshot: controller.arView?.snapshot())
+                }
+                .offset(y: -150)
+                .allowsHitTesting(false)
+            }
+
             VStack {
                 promptBar
                 Spacer()
-                if controller.lastCaptureFailed {
-                    Text("Couldn't find a surface there — aim at the bike and try again.")
-                        .font(.callout.bold())
-                        .foregroundStyle(.white)
-                        .padding(10)
-                        .background(.red.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
-                        .padding(.horizontal)
-                }
+                statusBanner
                 controls
             }
+
+            // Magnifier toggle, floating top-leading.
+            VStack {
+                HStack {
+                    Button { magnify.toggle() } label: {
+                        Image(systemName: magnify ? "plus.magnifyingglass" : "magnifyingglass")
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding()
         }
+    }
+
+    @ViewBuilder
+    private var statusBanner: some View {
+        if controller.lastCaptureFailed {
+            banner("Couldn't find a surface there — aim at the bike and try again.", .red)
+        } else if let d = controller.lastCaptureDistanceM {
+            if d > 2.5 {
+                banner(String(format: "Last point is %.1f m away — that may be the wall/floor behind the bike. Re-capture if it's wrong.", d), .orange)
+            } else {
+                banner(String(format: "Placed at %.2f m. Check the orange dot sits on the bike.", d), .green)
+            }
+        }
+    }
+
+    private func banner(_ text: String, _ color: Color) -> some View {
+        Text(text)
+            .font(.callout.bold())
+            .foregroundStyle(.white)
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(color.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal)
+            .padding(.bottom, 6)
     }
 
     private var reticle: some View {
@@ -151,6 +192,45 @@ struct ARKitMeasureView: View {
         // even while selected; the selection is shown by the white ring.
         if controller.points[landmark] != nil { return .green }
         return landmark == controller.active ? .orange : .gray
+    }
+}
+
+/// A magnifier showing a zoomed crop of the AR view's center for precise
+/// reticle aiming. Fed throttled snapshots so it doesn't tax the renderer.
+struct ReticleLoupe: View {
+    let snapshot: UIImage?
+    var diameter: CGFloat = 150
+    var zoom: CGFloat = 2.5
+
+    var body: some View {
+        ZStack {
+            if let img = cropped {
+                Image(uiImage: img).resizable().scaledToFill()
+            } else {
+                Color.black.opacity(0.35)
+            }
+            Rectangle().fill(.yellow).frame(width: 1, height: 16)
+            Rectangle().fill(.yellow).frame(width: 16, height: 1)
+        }
+        .frame(width: diameter, height: diameter)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(.white, lineWidth: 3))
+        .shadow(radius: 4)
+    }
+
+    /// Center crop of `diameter / zoom` points, later scaled up to `diameter`.
+    private var cropped: UIImage? {
+        guard let full = snapshot, let cg = full.cgImage else { return nil }
+        let scale = full.scale
+        let side = diameter / zoom
+        let cx = full.size.width / 2
+        let cy = full.size.height / 2
+        let rect = CGRect(x: (cx - side / 2) * scale,
+                          y: (cy - side / 2) * scale,
+                          width: side * scale,
+                          height: side * scale)
+        guard let cropCG = cg.cropping(to: rect) else { return nil }
+        return UIImage(cgImage: cropCG, scale: scale, orientation: full.imageOrientation)
     }
 }
 

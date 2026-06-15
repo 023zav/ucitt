@@ -1,6 +1,7 @@
 import Foundation
 import ARKit
 import SceneKit
+import simd
 import UCITTCore
 
 /// Drives the ARKit measuring session: owns the AR view, the guided landmark
@@ -17,9 +18,13 @@ final class ARMeasureController: NSObject, ObservableObject {
     @Published var activeIndex: Int = 0
     @Published var trackingNormal: Bool = false
     @Published var lastCaptureFailed: Bool = false
+    /// Distance (m) from the camera to the most recent captured point.
+    @Published var lastCaptureDistanceM: Double?
 
     let order = Landmark.captureOrder
     weak var arView: ARSCNView?
+    /// Visible scene markers, one per placed landmark.
+    private var nodes: [Landmark: SCNNode] = [:]
 
     var active: Landmark { order[min(activeIndex, order.count - 1)] }
     var allPlaced: Bool { order.allSatisfy { points[$0] != nil } }
@@ -65,9 +70,23 @@ final class ARMeasureController: NSObject, ObservableObject {
         lastCaptureFailed = false
 
         let c = hit.worldTransform.columns.3
-        points[active] = Point3(x: Double(c.x) * 1000.0,
-                                y: Double(c.y) * 1000.0,
-                                z: Double(c.z) * 1000.0)
+        let worldPos = simd_float3(c.x, c.y, c.z)
+
+        // How far the captured point is from the camera. A TT bike is scanned
+        // from ~1–1.5 m; a much larger distance usually means the ray slipped
+        // past a thin part (tip/BB) and hit the wall/floor behind — surface the
+        // number so the user can spot and re-do a bad capture.
+        if let cam = arView.session.currentFrame?.camera.transform.columns.3 {
+            let camPos = simd_float3(cam.x, cam.y, cam.z)
+            lastCaptureDistanceM = Double(simd_distance(camPos, worldPos))
+        } else {
+            lastCaptureDistanceM = nil
+        }
+
+        points[active] = Point3(x: Double(worldPos.x) * 1000.0,
+                                y: Double(worldPos.y) * 1000.0,
+                                z: Double(worldPos.z) * 1000.0)
+        addMarkerNode(at: worldPos, for: active)
         advance()
     }
 
@@ -76,7 +95,22 @@ final class ARMeasureController: NSObject, ObservableObject {
     }
 
     func undoActive() {
+        nodes[active]?.removeFromParentNode()
+        nodes[active] = nil
         points[active] = nil
+    }
+
+    /// Drop a visible sphere at a captured point so the user can verify it sits
+    /// on the bike (not the background) and re-capture if it doesn't.
+    private func addMarkerNode(at pos: simd_float3, for landmark: Landmark) {
+        nodes[landmark]?.removeFromParentNode()
+        let sphere = SCNSphere(radius: 0.008)   // 8 mm bead
+        sphere.firstMaterial?.diffuse.contents = UIColor.systemOrange
+        sphere.firstMaterial?.lightingModel = .constant
+        let node = SCNNode(geometry: sphere)
+        node.simdPosition = pos
+        arView?.scene.rootNode.addChildNode(node)
+        nodes[landmark] = node
     }
 
     private func advance() {

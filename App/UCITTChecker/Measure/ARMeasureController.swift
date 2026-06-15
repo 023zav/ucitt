@@ -1,6 +1,7 @@
 import Foundation
 import ARKit
 import SceneKit
+import CoreVideo
 import simd
 import UCITTCore
 
@@ -73,33 +74,41 @@ final class ARMeasureController: NSObject, ObservableObject {
         lastCaptureFailed = false
     }
 
-    /// Capture the current landmark by raycasting from the screen-center reticle.
+    /// Capture the current landmark. Prefers the LiDAR depth at the reticle
+    /// pixel (hits the actual surface you're pointing at, e.g. a thin tube),
+    /// and falls back to a plane/mesh raycast on non-LiDAR devices.
     func captureCurrent() {
         guard let arView else { return }
-        let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
 
-        // Prefer existing geometry (LiDAR mesh / detected planes); fall back to
-        // an estimated plane so it still works on non-LiDAR devices.
-        let targets: [ARRaycastQuery.Target] = [.existingPlaneGeometry, .estimatedPlane]
-        var hit: ARRaycastResult?
-        for target in targets {
-            guard let query = arView.raycastQuery(from: center, allowing: target, alignment: .any)
-            else { continue }
-            if let result = arView.session.raycast(query).first { hit = result; break }
+        var worldPos: simd_float3?
+
+        if let frame = arView.session.currentFrame {
+            worldPos = depthWorldPoint(frame: frame)
         }
 
-        guard let hit else {
+        if worldPos == nil {
+            // Fallback: raycast to existing geometry / an estimated plane.
+            let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+            for target in [ARRaycastQuery.Target.existingPlaneGeometry, .estimatedPlane] {
+                guard let query = arView.raycastQuery(from: center, allowing: target, alignment: .any)
+                else { continue }
+                if let result = arView.session.raycast(query).first {
+                    let c = result.worldTransform.columns.3
+                    worldPos = simd_float3(c.x, c.y, c.z)
+                    break
+                }
+            }
+        }
+
+        guard let worldPos else {
             lastCaptureFailed = true
             return
         }
         lastCaptureFailed = false
 
-        let c = hit.worldTransform.columns.3
-        let worldPos = simd_float3(c.x, c.y, c.z)
-
         // How far the captured point is from the camera. A TT bike is scanned
-        // from ~1–1.5 m; a much larger distance usually means the ray slipped
-        // past a thin part (tip/BB) and hit the wall/floor behind — surface the
+        // from ~1–1.5 m; a much larger distance usually means the aim slipped
+        // past a thin part (tip/BB) onto the wall/floor behind — surface the
         // number so the user can spot and re-do a bad capture.
         if let cam = arView.session.currentFrame?.camera.transform.columns.3 {
             let camPos = simd_float3(cam.x, cam.y, cam.z)
@@ -113,6 +122,32 @@ final class ARMeasureController: NSObject, ObservableObject {
                                 z: Double(worldPos.z) * 1000.0)
         addMarkerNode(at: worldPos, for: active)
         advance()
+    }
+
+    /// World point from the LiDAR depth map at its center (≈ the reticle / the
+    /// camera's optical axis). Reading depth at the aimed pixel hits the real
+    /// surface there — a thin tube, the saddle nose — instead of punching
+    /// through to a plane behind it, which is what corrupted the horizontal
+    /// measurements. Returns nil when there's no depth (non-LiDAR device).
+    private func depthWorldPoint(frame: ARFrame) -> simd_float3? {
+        guard let depth = (frame.smoothedSceneDepth ?? frame.sceneDepth)?.depthMap else {
+            return nil
+        }
+        CVPixelBufferLockBaseAddress(depth, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depth, .readOnly) }
+
+        let w = CVPixelBufferGetWidth(depth)
+        let h = CVPixelBufferGetHeight(depth)
+        guard let base = CVPixelBufferGetBaseAddress(depth) else { return nil }
+        let rowBytes = CVPixelBufferGetBytesPerRow(depth)
+        let row = base.advanced(by: (h / 2) * rowBytes).assumingMemoryBound(to: Float32.self)
+        let d = row[w / 2]   // metres at the image center
+        guard d.isFinite, d > 0.05, d < 5.0 else { return nil }
+
+        // The image center ≈ the camera's optical axis, so the surface point is
+        // straight ahead at distance d in camera space (ARKit camera looks -z).
+        let world = frame.camera.transform * simd_float4(0, 0, -d, 1)
+        return simd_float3(world.x, world.y, world.z)
     }
 
     func select(_ landmark: Landmark) {

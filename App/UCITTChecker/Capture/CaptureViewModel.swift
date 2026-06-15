@@ -19,7 +19,11 @@ final class CaptureViewModel: NSObject, ObservableObject {
     // we opt out of main-actor isolation for these two objects only.
     nonisolated(unsafe) let session = AVCaptureSession()
     nonisolated(unsafe) private let photoOutput = AVCapturePhotoOutput()
+    nonisolated(unsafe) private var videoDevice: AVCaptureDevice?
     private let sessionQueue = DispatchQueue(label: "ucitt.capture.session")
+
+    /// Derives the correct capture rotation from device motion (iOS 17 API).
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
 
     private let detector: MarkerDetecting = VisionMarkerDetector()
 
@@ -35,9 +39,6 @@ final class CaptureViewModel: NSObject, ObservableObject {
     // MARK: Permissions & lifecycle
 
     func requestAccessAndConfigure() {
-        // Needed for UIDevice.current.orientation to report the physical
-        // orientation even though the app UI is portrait-locked.
-        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             isAuthorized = true
@@ -72,6 +73,7 @@ final class CaptureViewModel: NSObject, ObservableObject {
                 return
             }
             self.session.addInput(input)
+            self.videoDevice = device
 
             if self.session.canAddOutput(self.photoOutput) {
                 self.session.addOutput(self.photoOutput)
@@ -125,24 +127,20 @@ final class CaptureViewModel: NSObject, ObservableObject {
 
     private func capturePhoto() async throws -> UIImage {
         // Orient the capture to how the phone is physically held, so a landscape
-        // shot of a wide bike isn't saved rotated to portrait.
+        // shot of a wide bike isn't saved rotated to portrait. The rotation
+        // coordinator derives the correct angle from device motion (iOS 17+).
+        if rotationCoordinator == nil, let dev = videoDevice {
+            rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: dev, previewLayer: nil)
+        }
         if let conn = photoOutput.connection(with: .video),
-           conn.isVideoOrientationSupported {
-            conn.videoOrientation = currentVideoOrientation()
+           let angle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture,
+           conn.isVideoRotationAngleSupported(angle) {
+            conn.videoRotationAngle = angle
         }
         return try await withCheckedThrowingContinuation { cont in
             self.captureContinuation = cont
             let settings = AVCapturePhotoSettings()
             self.photoOutput.capturePhoto(with: settings, delegate: self)
-        }
-    }
-
-    private func currentVideoOrientation() -> AVCaptureVideoOrientation {
-        switch UIDevice.current.orientation {
-        case .landscapeLeft:      return .landscapeRight
-        case .landscapeRight:     return .landscapeLeft
-        case .portraitUpsideDown: return .portraitUpsideDown
-        default:                  return .portrait
         }
     }
 }

@@ -24,8 +24,9 @@ final class CheckFlowModel: ObservableObject {
     @Published var useSetbackOverride: Bool = false
     @Published var setbackOverrideMm: Double = 60
 
-    // How we get real-world scale (§6). Bank-card photo (no printing) or ARKit.
-    @Published var mode: MeasurementMode = .bankCardPhoto
+    // How we get real-world scale (§6). LiDAR scan is primary; bank card is the
+    // fallback for phones without LiDAR.
+    @Published var mode: MeasurementMode = .arKit
 
     // Capture output (bank-card photo mode)
     @Published var capturedImage: UIImage?

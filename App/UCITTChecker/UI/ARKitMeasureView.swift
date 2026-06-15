@@ -201,8 +201,8 @@ struct ARKitMeasureView: View {
 /// reticle aiming. Fed throttled snapshots so it doesn't tax the renderer.
 struct ReticleLoupe: View {
     let snapshot: UIImage?
-    var diameter: CGFloat = 150
-    var zoom: CGFloat = 1.8
+    var diameter: CGFloat = 160
+    var zoom: CGFloat = 1.4
 
     var body: some View {
         ZStack {

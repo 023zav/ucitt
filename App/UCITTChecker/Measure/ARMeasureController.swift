@@ -2,8 +2,19 @@ import Foundation
 import ARKit
 import SceneKit
 import CoreVideo
+import UIKit
 import simd
 import UCITTCore
+
+/// Light haptic feedback for capture success/failure.
+enum Haptics {
+    static func success() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+    static func error() {
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
+    }
+}
 
 /// Drives the ARKit measuring session: owns the AR view, the guided landmark
 /// order, and the captured gravity-aligned 3D points (stored in mm).
@@ -79,18 +90,23 @@ final class ARMeasureController: NSObject, ObservableObject {
     /// and falls back to a plane/mesh raycast on non-LiDAR devices.
     func captureCurrent() {
         guard let arView else { return }
+        let reticle = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
 
         var worldPos: simd_float3?
 
-        if let frame = arView.session.currentFrame {
-            worldPos = depthWorldPoint(frame: frame)
+        // Preferred: LiDAR depth at the reticle, placed along the ray that
+        // actually passes through the reticle pixel — so the dot lands exactly
+        // under the crosshair (not along the optical axis, which sits elsewhere
+        // on screen after aspect-fill and made the dot appear above the aim).
+        if let frame = arView.session.currentFrame,
+           let d = nearestDepthMetres(frame: frame) {
+            worldPos = worldPoint(throughReticle: reticle, depth: d, arView: arView, frame: frame)
         }
 
         if worldPos == nil {
             // Fallback: raycast to existing geometry / an estimated plane.
-            let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
             for target in [ARRaycastQuery.Target.existingPlaneGeometry, .estimatedPlane] {
-                guard let query = arView.raycastQuery(from: center, allowing: target, alignment: .any)
+                guard let query = arView.raycastQuery(from: reticle, allowing: target, alignment: .any)
                 else { continue }
                 if let result = arView.session.raycast(query).first {
                     let c = result.worldTransform.columns.3
@@ -102,6 +118,7 @@ final class ARMeasureController: NSObject, ObservableObject {
 
         guard let worldPos else {
             lastCaptureFailed = true
+            Haptics.error()
             return
         }
         lastCaptureFailed = false
@@ -121,15 +138,14 @@ final class ARMeasureController: NSObject, ObservableObject {
                                 y: Double(worldPos.y) * 1000.0,
                                 z: Double(worldPos.z) * 1000.0)
         addMarkerNode(at: worldPos, for: active)
+        Haptics.success()
         advance()
     }
 
-    /// World point from the LiDAR depth map at its center (≈ the reticle / the
-    /// camera's optical axis). Reading depth at the aimed pixel hits the real
-    /// surface there — a thin tube, the saddle nose — instead of punching
-    /// through to a plane behind it, which is what corrupted the horizontal
-    /// measurements. Returns nil when there's no depth (non-LiDAR device).
-    private func depthWorldPoint(frame: ARFrame) -> simd_float3? {
+    /// Nearest valid depth (metres) in a small patch at the depth map's center.
+    /// Aiming at a thin tube/tip, the exact pixel can fall in the gap beside it
+    /// and read the wall behind; the nearest depth grabs the foreground part.
+    private func nearestDepthMetres(frame: ARFrame) -> Float? {
         guard let depth = (frame.smoothedSceneDepth ?? frame.sceneDepth)?.depthMap else {
             return nil
         }
@@ -141,10 +157,6 @@ final class ARMeasureController: NSObject, ObservableObject {
         guard let base = CVPixelBufferGetBaseAddress(depth) else { return nil }
         let rowBytes = CVPixelBufferGetBytesPerRow(depth)
 
-        // Sample a small patch at the center and take the NEAREST valid depth.
-        // Aiming at a thin tube/tip, the reticle pixel can fall in the gap beside
-        // it and read the wall behind; the nearest depth in the patch grabs the
-        // foreground part you're actually pointing at.
         let cx = w / 2, cy = h / 2
         let half = max(2, Int(Double(min(w, h)) * 0.02))
         var best = Float32.greatestFiniteMagnitude
@@ -155,13 +167,27 @@ final class ARMeasureController: NSObject, ObservableObject {
                 if v.isFinite, v > 0.05, v < 5.0, v < best { best = v }
             }
         }
-        guard best < Float32.greatestFiniteMagnitude else { return nil }
-        let d = best   // metres, nearest surface at the reticle
+        return best < Float32.greatestFiniteMagnitude ? best : nil
+    }
 
-        // The image center ≈ the camera's optical axis, so the surface point is
-        // straight ahead at distance d in camera space (ARKit camera looks -z).
-        let world = frame.camera.transform * simd_float4(0, 0, -d, 1)
-        return simd_float3(world.x, world.y, world.z)
+    /// World point at perpendicular `depth`, on the ray through `reticle`. Using
+    /// the reticle ray (not the optical axis) guarantees the point projects back
+    /// to the crosshair, so the dot lands exactly where you aimed.
+    private func worldPoint(throughReticle reticle: CGPoint, depth d: Float,
+                            arView: ARSCNView, frame: ARFrame) -> simd_float3? {
+        guard let query = arView.raycastQuery(from: reticle, allowing: .estimatedPlane, alignment: .any) else {
+            let world = frame.camera.transform * simd_float4(0, 0, -d, 1)
+            return simd_float3(world.x, world.y, world.z)
+        }
+        let origin = query.origin
+        let dir = simd_normalize(query.direction)
+        // Camera forward (optical axis) is -Z of the camera transform.
+        let col2 = frame.camera.transform.columns.2
+        let forward = -simd_normalize(simd_float3(col2.x, col2.y, col2.z))
+        let cosTheta = simd_dot(dir, forward)
+        // d is perpendicular depth; distance along the ray = d / cos(theta).
+        let t = cosTheta > 0.1 ? d / cosTheta : d
+        return origin + dir * t
     }
 
     func select(_ landmark: Landmark) {

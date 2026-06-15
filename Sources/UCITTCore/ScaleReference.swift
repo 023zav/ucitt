@@ -9,15 +9,17 @@ import Foundation
 ///   devices). Gravity gives vertical; horizontal distances come from the
 ///   world-space points. No reference object at all.
 public enum MeasurementMode: String, CaseIterable, Identifiable, Codable {
-    case bankCardPhoto
+    // LiDAR is the primary method; bank card is the fallback for non-LiDAR
+    // phones. Order here drives the picker order (LiDAR first).
     case arKit
+    case bankCardPhoto
 
     public var id: String { rawValue }
 
     public var displayName: String {
         switch self {
         case .bankCardPhoto: return "Bank card"
-        case .arKit:         return "ARKit (LiDAR)"
+        case .arKit:         return "LiDAR scan"
         }
     }
 

@@ -7,15 +7,16 @@ struct OnboardingView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 14) {
                 Text("UCI TT Position Checker")
-                    .font(.largeTitle.bold())
+                    .font(.title.bold())
 
-                Text("A quick pre-check for your time-trial cockpit. Not a UCI certification.")
+                Text("A quick pre-check for your TT cockpit. Not a UCI certification.")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 GroupBox("Measurement mode") {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Picker("Mode", selection: $flow.mode) {
                             ForEach(MeasurementMode.allCases) { mode in
                                 Text(mode.displayName).tag(mode)
@@ -24,43 +25,45 @@ struct OnboardingView: View {
                         .pickerStyle(.segmented)
 
                         Text(modeBlurb)
-                            .font(.callout)
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
                 }
 
                 GroupBox("How to set up") {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 10) {
                         if let illustration {
                             illustration
                                 .resizable()
                                 .scaledToFit()
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, maxHeight: 150)
                                 .accessibilityLabel(illustrationAccessibility)
                         }
                         ForEach(setupSteps, id: \.text) { step in
                             Label(step.text, systemImage: step.icon)
                         }
                     }
-                    .font(.callout)
+                    .font(.footnote)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
                 }
 
                 DisclaimerBanner()
-
-                Button {
-                    flow.advance(to: .riderInput)
-                } label: {
-                    Text("Continue")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
             .padding()
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                flow.advance(to: .riderInput)
+            } label: {
+                Text("Continue")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+            .background(.bar)
         }
         .navigationBarTitleDisplayMode(.inline)
     }

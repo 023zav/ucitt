@@ -32,8 +32,9 @@ final class ARMeasureController: NSObject, ObservableObject {
 
     static var isSupported: Bool { ARWorldTrackingConfiguration.isSupported }
 
-    func start() {
-        guard let arView else { return }
+    private var didConfigure = false
+
+    private func makeConfig() -> ARWorldTrackingConfiguration {
         let config = ARWorldTrackingConfiguration()
         config.worldAlignment = .gravity
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
@@ -42,11 +43,35 @@ final class ARMeasureController: NSObject, ObservableObject {
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             config.frameSemantics.insert(.sceneDepth)
         }
+        return config
+    }
+
+    func start() {
+        guard let arView else { return }
         arView.session.delegate = self
-        arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        if didConfigure {
+            // Returning to this screen (e.g. Back from Results): resume the same
+            // session WITHOUT resetting tracking, so the world origin — and the
+            // already-placed orange dots — stay locked to the real bike. A reset
+            // here would detach every dot.
+            arView.session.run(makeConfig())
+        } else {
+            didConfigure = true
+            arView.session.run(makeConfig(), options: [.resetTracking, .removeExistingAnchors])
+        }
     }
 
     func pause() { arView?.session.pause() }
+
+    /// Discard all placed points and their scene markers (a fresh scan).
+    func resetPoints() {
+        for node in nodes.values { node.removeFromParentNode() }
+        nodes.removeAll()
+        points.removeAll()
+        activeIndex = 0
+        lastCaptureDistanceM = nil
+        lastCaptureFailed = false
+    }
 
     /// Capture the current landmark by raycasting from the screen-center reticle.
     func captureCurrent() {

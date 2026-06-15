@@ -41,6 +41,8 @@ final class CheckFlowModel: ObservableObject {
     // Result
     @Published var report: ResultReport?
     @Published var checkError: PositionChecker.Failure?
+    /// Human-readable debug dump of the most recent successful run.
+    @Published var lastDebugText: String = ""
 
     private var checker: PositionChecker {
         PositionChecker(rules: .current,
@@ -74,9 +76,22 @@ final class CheckFlowModel: ObservableObject {
         switch checker.check(points3: landmark3D,
                              heightCm: heightCm,
                              setbackOverrideMm: override) {
-        case .success(let r): report = r; checkError = nil
+        case .success(let r):
+            report = r; checkError = nil
+            logRun(report: r, points3D: landmark3D)
         case .failure(let e): report = nil; checkError = e
         }
+    }
+
+    /// Record a successful run to the persistent debug log and stash a readable
+    /// dump for the Results screen.
+    private func logRun(report: ResultReport, points3D: [Landmark: Point3]) {
+        let record = RunRecord(mode: mode.rawValue,
+                               heightCm: heightCm,
+                               report: report,
+                               points3D: points3D)
+        RunLog.append(record)
+        lastDebugText = RunLog.text(for: record, points3D: points3D)
     }
 
     /// All six landmarks placed?
@@ -104,6 +119,7 @@ final class CheckFlowModel: ObservableObject {
         case .success(let r):
             report = r
             checkError = nil
+            logRun(report: r, points3D: [:])   // card mode has no 3D points
         case .failure(let e):
             report = nil
             checkError = e

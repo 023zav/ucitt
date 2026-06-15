@@ -60,13 +60,16 @@ struct ARKitMeasureView: View {
 
     private var reticleOverlay: some View {
         ZStack {
-            reticle
+            // When magnifying, the loupe sits exactly on the aim point (you aim
+            // the whole phone, so nothing is in the way) and its own crosshair
+            // marks where the dot will land — no offset to misread.
             if magnify {
                 TimelineView(.periodic(from: .now, by: 0.08)) { _ in
                     ReticleLoupe(snapshot: controller.arView?.snapshot())
                 }
-                .offset(y: -160)
                 .allowsHitTesting(false)
+            } else {
+                reticle
             }
         }
     }
@@ -97,9 +100,10 @@ struct ARKitMeasureView: View {
 
     private var reticle: some View {
         ZStack {
-            Circle().stroke(.yellow, lineWidth: 2).frame(width: 26, height: 26)
-            Rectangle().fill(.yellow).frame(width: 1, height: 14)
-            Rectangle().fill(.yellow).frame(width: 14, height: 1)
+            Circle().stroke(.yellow, lineWidth: 2).frame(width: 28, height: 28)
+            Rectangle().fill(.yellow).frame(width: 1, height: 16)
+            Rectangle().fill(.yellow).frame(width: 16, height: 1)
+            Circle().fill(.yellow).frame(width: 4, height: 4)   // exact aim point
         }
     }
 

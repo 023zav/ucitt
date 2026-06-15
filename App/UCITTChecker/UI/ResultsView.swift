@@ -67,8 +67,37 @@ struct ResultsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+
+                debugSection
             }
             .padding()
+        }
+    }
+
+    @ViewBuilder
+    private var debugSection: some View {
+        if !flow.lastDebugText.isEmpty {
+            DisclosureGroup("Debug data") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(flow.lastDebugText)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack {
+                        ShareLink(item: flow.lastDebugText) {
+                            Label("This run", systemImage: "square.and.arrow.up")
+                        }
+                        Spacer()
+                        ShareLink(item: RunLog.wholeLogText()) {
+                            Label("Full log", systemImage: "doc.text")
+                        }
+                    }
+                    .font(.footnote)
+                }
+                .padding(.top, 4)
+            }
+            .font(.footnote)
         }
     }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import ARKit
+import UIKit
 import UCITTCore
 
 /// S3/S4 (ARKit mode) — aim the reticle at each landmark and tap to capture a
@@ -40,12 +41,12 @@ struct ARKitMeasureView: View {
 
     private var measuring: some View {
         ZStack {
-            // The reticle + loupe live in an overlay on the AR view, which
-            // ignores the safe area. That makes the crosshair's center exactly
-            // the full-screen center the raycast fires from — otherwise the
-            // crosshair (laid out inside the safe area) sits below the true
-            // aim point and the captured spot is off.
-            ARContainer(controller: controller)
+            // The crosshair is drawn as a UIKit subview centered INSIDE the AR
+            // view (see ARContainer), so it sits exactly at the AR view's true
+            // center — the same point the capture ray fires from and where the
+            // dot renders. A SwiftUI overlay would be laid out in the safe area
+            // and sit a bit low, which is what made the dot look "higher".
+            ARContainer(controller: controller, magnify: magnify)
                 .ignoresSafeArea()
                 .overlay { reticleOverlay }
 
@@ -59,17 +60,15 @@ struct ARKitMeasureView: View {
     }
 
     private var reticleOverlay: some View {
-        ZStack {
-            // When magnifying, the loupe sits exactly on the aim point (you aim
-            // the whole phone, so nothing is in the way) and its own crosshair
-            // marks where the dot will land — no offset to misread.
+        // Only the magnifier is a SwiftUI overlay; its content is sampled from
+        // the AR view's center, so it stays accurate regardless of position.
+        // The non-zoom crosshair is the UIKit one inside ARContainer.
+        Group {
             if magnify {
                 TimelineView(.periodic(from: .now, by: 0.08)) { _ in
                     ReticleLoupe(snapshot: controller.arView?.snapshot())
                 }
                 .allowsHitTesting(false)
-            } else {
-                reticle
             }
         }
     }
@@ -96,15 +95,6 @@ struct ARKitMeasureView: View {
             .background(color.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal)
             .padding(.bottom, 6)
-    }
-
-    private var reticle: some View {
-        ZStack {
-            Circle().stroke(.yellow, lineWidth: 2).frame(width: 28, height: 28)
-            Rectangle().fill(.yellow).frame(width: 1, height: 16)
-            Rectangle().fill(.yellow).frame(width: 16, height: 1)
-            Circle().fill(.yellow).frame(width: 4, height: 4)   // exact aim point
-        }
     }
 
     private var promptBar: some View {
@@ -236,21 +226,66 @@ struct ReticleLoupe: View {
     }
 }
 
-/// Hosts an `ARSCNView` and wires it to the controller.
+/// Hosts an `ARSCNView` and wires it to the controller. The crosshair is a
+/// UIKit subview pinned to the AR view's exact center, so it coincides with the
+/// capture ray and the rendered dot (a SwiftUI overlay would sit in the safe
+/// area and appear low).
 struct ARContainer: UIViewRepresentable {
     let controller: ARMeasureController
+    var magnify: Bool = false
+
+    private static let crosshairTag = 7001
 
     func makeUIView(context: Context) -> ARSCNView {
         let view = ARSCNView(frame: .zero)
         view.automaticallyUpdatesLighting = true
         controller.arView = view
         controller.start()
+
+        let cross = CrosshairView()
+        cross.tag = Self.crosshairTag
+        cross.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(cross)
+        NSLayoutConstraint.activate([
+            cross.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            cross.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            cross.widthAnchor.constraint(equalToConstant: 34),
+            cross.heightAnchor.constraint(equalToConstant: 34)
+        ])
         return view
     }
 
-    func updateUIView(_ uiView: ARSCNView, context: Context) {}
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
+        // Hide the static crosshair while the magnifier is up (it has its own).
+        uiView.viewWithTag(Self.crosshairTag)?.isHidden = magnify
+    }
 
     static func dismantleUIView(_ uiView: ARSCNView, coordinator: ()) {
         uiView.session.pause()
+    }
+}
+
+/// Yellow crosshair drawn at the center of its bounds (UIKit, so it can be
+/// centered exactly inside the AR view).
+final class CrosshairView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+    }
+    required init?(coder: NSCoder) { super.init(coder: coder) }
+
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        UIColor.systemYellow.setStroke()
+        UIColor.systemYellow.setFill()
+        ctx.setLineWidth(2)
+        let r: CGFloat = 14
+        ctx.strokeEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+        ctx.move(to: CGPoint(x: c.x, y: c.y - 9));  ctx.addLine(to: CGPoint(x: c.x, y: c.y + 9))
+        ctx.move(to: CGPoint(x: c.x - 9, y: c.y));  ctx.addLine(to: CGPoint(x: c.x + 9, y: c.y))
+        ctx.strokePath()
+        ctx.fillEllipse(in: CGRect(x: c.x - 2, y: c.y - 2, width: 4, height: 4))
     }
 }

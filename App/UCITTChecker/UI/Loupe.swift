@@ -7,19 +7,24 @@ struct Loupe: View {
     let fit: ImageFit
     /// The point of interest in *view* coordinates.
     let focusViewPoint: CGPoint
-    var diameter: CGFloat = 140
-    var magnification: CGFloat = 2.5
+    var diameter: CGFloat = 150
+    var magnification: CGFloat = 2.2
 
     var body: some View {
         let r = fit.displayedRect
+        let w = r.width * magnification
+        let h = r.height * magnification
         ZStack {
-            // The image, scaled up around the focus point.
+            // The zoomed image is centered in the loupe, then shifted so the
+            // focus point lands at the loupe's center. Because SwiftUI centers
+            // the image, the shift is measured from the image's HALF-SIZE
+            // (w/2, h/2) — not the loupe radius — to the focus point.
             Image(uiImage: image)
                 .resizable()
-                .frame(width: r.width * magnification, height: r.height * magnification)
+                .frame(width: w, height: h)
                 .offset(
-                    x: -(focusViewPoint.x - r.minX) * magnification + diameter / 2,
-                    y: -(focusViewPoint.y - r.minY) * magnification + diameter / 2
+                    x: w / 2 - (focusViewPoint.x - r.minX) * magnification,
+                    y: h / 2 - (focusViewPoint.y - r.minY) * magnification
                 )
             crosshair
         }

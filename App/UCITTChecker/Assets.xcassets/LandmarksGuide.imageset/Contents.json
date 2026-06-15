@@ -1,11 +1,4 @@
 {
-  "images" : [
-    {
-      "idiom" : "universal"
-    }
-  ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
-  }
+  "images" : [ { "idiom" : "universal", "filename" : "landmarks-guide.png" } ],
+  "info" : { "author" : "xcode", "version" : 1 }
 }

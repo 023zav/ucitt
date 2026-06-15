@@ -7,6 +7,7 @@ enum FlowStep: Hashable {
     case onboarding
     case riderInput
     case capture
+    case cardCorners
     case tapping
     case arkit
     case results

@@ -224,8 +224,8 @@ final class ARMeasureController: NSObject, ObservableObject {
         let (minB, maxB) = text.boundingBox
         textNode.pivot = SCNMatrix4MakeTranslation((minB.x + maxB.x) / 2,
                                                    (minB.y + maxB.y) / 2, 0)
-        textNode.scale = SCNVector3(0.0016, 0.0016, 0.0016)
-        textNode.position = SCNVector3(0, 0.022, 0)   // ~22 mm above the bead
+        textNode.scale = SCNVector3(0.0014, 0.0014, 0.0014)
+        textNode.position = SCNVector3(0, 0.013, 0)   // ~13 mm above the bead
         let billboard = SCNBillboardConstraint()
         billboard.freeAxes = .all
         textNode.constraints = [billboard]

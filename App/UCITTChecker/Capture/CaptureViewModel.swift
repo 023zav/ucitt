@@ -110,6 +110,16 @@ final class CaptureViewModel: NSObject, ObservableObject {
         }
     }
 
+    /// Just take the still, no marker detection (card corners are tapped by hand).
+    func capturePhotoOnly() async -> UIImage? {
+        do {
+            return try await capturePhoto()
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
     private func capturePhoto() async throws -> UIImage {
         try await withCheckedThrowingContinuation { cont in
             self.captureContinuation = cont

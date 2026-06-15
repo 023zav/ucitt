@@ -69,17 +69,14 @@ struct CaptureView: View {
     private func capture() async {
         isCapturing = true
         defer { isCapturing = false }
-        guard let result = await vm.capture() else { return }
+        guard let image = await vm.capturePhotoOnly() else { return }
 
-        flow.capturedImage = result.image
-        flow.markerCornersPx = result.corners ?? []
-        flow.captureRejection = result.rejection
-
-        // Good capture with corners → proceed to tapping.
-        if result.rejection == nil, let corners = result.corners, corners.count == 4 {
-            vm.stop()
-            flow.advance(to: .tapping)
-        }
+        // No auto-detection — the card corners are tapped by hand next (robust).
+        flow.capturedImage = image
+        flow.markerCornersPx = []
+        flow.captureRejection = nil
+        vm.stop()
+        flow.advance(to: .cardCorners)
     }
 
     @ViewBuilder

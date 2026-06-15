@@ -12,6 +12,7 @@ struct RootView: View {
                     case .onboarding: OnboardingView()
                     case .riderInput: RiderInputView()
                     case .capture:    CaptureView()
+                    case .cardCorners: CardCornerView()
                     case .tapping:    TappingView()
                     case .arkit:      ARKitMeasureView()
                     case .results:    ResultsView()

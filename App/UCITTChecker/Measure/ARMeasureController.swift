@@ -140,9 +140,23 @@ final class ARMeasureController: NSObject, ObservableObject {
         let h = CVPixelBufferGetHeight(depth)
         guard let base = CVPixelBufferGetBaseAddress(depth) else { return nil }
         let rowBytes = CVPixelBufferGetBytesPerRow(depth)
-        let row = base.advanced(by: (h / 2) * rowBytes).assumingMemoryBound(to: Float32.self)
-        let d = row[w / 2]   // metres at the image center
-        guard d.isFinite, d > 0.05, d < 5.0 else { return nil }
+
+        // Sample a small patch at the center and take the NEAREST valid depth.
+        // Aiming at a thin tube/tip, the reticle pixel can fall in the gap beside
+        // it and read the wall behind; the nearest depth in the patch grabs the
+        // foreground part you're actually pointing at.
+        let cx = w / 2, cy = h / 2
+        let half = max(2, Int(Double(min(w, h)) * 0.02))
+        var best = Float32.greatestFiniteMagnitude
+        for yy in max(0, cy - half)...min(h - 1, cy + half) {
+            let row = base.advanced(by: yy * rowBytes).assumingMemoryBound(to: Float32.self)
+            for xx in max(0, cx - half)...min(w - 1, cx + half) {
+                let v = row[xx]
+                if v.isFinite, v > 0.05, v < 5.0, v < best { best = v }
+            }
+        }
+        guard best < Float32.greatestFiniteMagnitude else { return nil }
+        let d = best   // metres, nearest surface at the reticle
 
         // The image center ≈ the camera's optical axis, so the surface point is
         // straight ahead at distance d in camera space (ARKit camera looks -z).
@@ -160,15 +174,37 @@ final class ARMeasureController: NSObject, ObservableObject {
         points[active] = nil
     }
 
-    /// Drop a visible sphere at a captured point so the user can verify it sits
-    /// on the bike (not the background) and re-capture if it doesn't.
+    /// Drop a visible, numbered sphere at a captured point so the user can
+    /// verify it sits on the bike (not the background) and re-capture if it
+    /// doesn't. The number matches the landmark's order (1…6), so a screenshot
+    /// of all dots can be checked at a glance.
     private func addMarkerNode(at pos: simd_float3, for landmark: Landmark) {
         nodes[landmark]?.removeFromParentNode()
+        let number = (order.firstIndex(of: landmark) ?? 0) + 1
+
         let sphere = SCNSphere(radius: 0.008)   // 8 mm bead
         sphere.firstMaterial?.diffuse.contents = UIColor.systemOrange
         sphere.firstMaterial?.lightingModel = .constant
         let node = SCNNode(geometry: sphere)
         node.simdPosition = pos
+
+        // Billboarded number floating just above the bead.
+        let text = SCNText(string: "\(number)", extrusionDepth: 0)
+        text.font = UIFont.boldSystemFont(ofSize: 10)
+        text.flatness = 0.1
+        text.firstMaterial?.diffuse.contents = UIColor.white
+        text.firstMaterial?.lightingModel = .constant
+        let textNode = SCNNode(geometry: text)
+        let (minB, maxB) = text.boundingBox
+        textNode.pivot = SCNMatrix4MakeTranslation((minB.x + maxB.x) / 2,
+                                                   (minB.y + maxB.y) / 2, 0)
+        textNode.scale = SCNVector3(0.0016, 0.0016, 0.0016)
+        textNode.position = SCNVector3(0, 0.022, 0)   // ~22 mm above the bead
+        let billboard = SCNBillboardConstraint()
+        billboard.freeAxes = .all
+        textNode.constraints = [billboard]
+        node.addChildNode(textNode)
+
         arView?.scene.rootNode.addChildNode(node)
         nodes[landmark] = node
     }

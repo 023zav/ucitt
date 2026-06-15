@@ -1,41 +1,31 @@
 import Foundation
 
-/// How the app obtains real-world scale (§3/§6).
+/// How the app obtains real-world scale.
 ///
-/// - `.bankCardPhoto`: a single side-on photo with a standard ISO/IEC 7810
-///   ID-1 card (every credit/debit/ID card is exactly 85.6 × 54 mm) in the
-///   cockpit plane. A homography maps pixels → mm. No printing.
 /// - `.arKit`: markerless 3D measurement using ARKit (LiDAR depth on Pro
 ///   devices). Gravity gives vertical; horizontal distances come from the
-///   world-space points. No reference object at all.
+///   world-space points. No reference object at all. Primary method.
+/// - `.wheel`: a single side-on photo scaled from the bike's own wheel (known
+///   diameter). Markerless, works on any phone, nothing to attach. Fallback /
+///   cross-check.
 public enum MeasurementMode: String, CaseIterable, Identifiable, Codable {
-    // LiDAR is the primary method; bank card is the fallback for non-LiDAR
-    // phones. Order here drives the picker order (LiDAR first).
+    // Order here drives the picker order (LiDAR first).
     case arKit
-    case bankCardPhoto
+    case wheel
 
     public var id: String { rawValue }
 
     public var displayName: String {
         switch self {
-        case .bankCardPhoto: return "Bank card"
-        case .arKit:         return "LiDAR scan"
+        case .wheel: return "Wheel photo"
+        case .arKit: return "LiDAR scan"
         }
     }
 
     public var noun: String {
         switch self {
-        case .bankCardPhoto: return "card"
-        case .arKit:         return "phone"
+        case .wheel: return "photo"
+        case .arKit: return "phone"
         }
     }
-}
-
-/// Physical size of the bank card used as the scale reference in
-/// `.bankCardPhoto` mode (ISO/IEC 7810 ID-1).
-public enum BankCard {
-    public static let widthMM: Double = 85.60   // long edge, placed horizontal
-    public static let heightMM: Double = 53.98  // short edge
-    /// Aspect (shorter / longer), for tuning rectangle detection.
-    public static let shortOverLongAspect: Double = heightMM / widthMM
 }

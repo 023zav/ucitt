@@ -70,8 +70,8 @@ struct OnboardingView: View {
 
     private var modeBlurb: String {
         switch flow.mode {
-        case .bankCardPhoto:
-            return "Take one side-on photo with any bank card in frame for scale. Works on any iPhone. No printing."
+        case .wheel:
+            return "Take one square-on side-on photo of the whole bike. Scale comes from your wheel — no object to attach. Works on any iPhone."
         case .arKit:
             return "Point the phone at the bike and tap each landmark in 3D. Best on Pro models with LiDAR. No reference object."
         }
@@ -79,7 +79,7 @@ struct OnboardingView: View {
 
     /// The per-mode diagram, shown only once its asset has been added.
     private var illustrationName: String {
-        flow.mode == .bankCardPhoto ? "CardPlacement" : "ARKitScan"
+        flow.mode == .wheel ? "WheelPlacement" : "ARKitScan"
     }
 
     private var illustration: Image? {
@@ -87,8 +87,8 @@ struct OnboardingView: View {
     }
 
     private var illustrationAccessibility: String {
-        flow.mode == .bankCardPhoto
-            ? "Where to place the bank card on the bike"
+        flow.mode == .wheel
+            ? "How to frame the bike for a wheel-scaled photo"
             : "Aiming the phone at the bike to capture landmarks"
     }
 
@@ -96,16 +96,16 @@ struct OnboardingView: View {
 
     private var setupSteps: [Step] {
         switch flow.mode {
-        case .bankCardPhoto:
+        case .wheel:
             return [
-                Step(text: "Grab any bank/credit/ID card — they're all exactly 85.6 × 54 mm.",
-                     icon: "creditcard"),
-                Step(text: "Hold or tape it in the cockpit plane (same vertical plane as the extensions), long edge horizontal.",
+                Step(text: "Pick your wheel/tyre size on the next screen — it sets the scale.",
                      icon: "bicycle"),
-                Step(text: "Keep it level — captures tilted more than ~1° are rejected.",
-                     icon: "level"),
-                Step(text: "Get the bike fully side-on, with the card sharp and fully in frame.",
-                     icon: "camera")
+                Step(text: "Stand back and shoot the whole bike dead side-on, square to the camera.",
+                     icon: "camera"),
+                Step(text: "Keep both wheels fully in frame and the bike on level ground.",
+                     icon: "ruler"),
+                Step(text: "You'll then tap the two wheel hubs + a tyre contact point, and the 6 landmarks.",
+                     icon: "hand.tap")
             ]
         case .arKit:
             return [

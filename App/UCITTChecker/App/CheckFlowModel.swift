@@ -2,12 +2,12 @@ import SwiftUI
 import UIKit
 import UCITTCore
 
-/// The screens of the guided flow (§4).
+/// The screens of the guided flow.
 enum FlowStep: Hashable {
     case onboarding
     case riderInput
     case capture
-    case cardCorners
+    case wheelReference
     case tapping
     case arkit
     case results
@@ -20,19 +20,22 @@ final class CheckFlowModel: ObservableObject {
     // Navigation
     @Published var path: [FlowStep] = []
 
-    // Rider inputs (§4 S2)
+    // Rider inputs
     @Published var heightCm: Double = 178
     @Published var useSetbackOverride: Bool = false
     @Published var setbackOverrideMm: Double = 60
 
-    // How we get real-world scale (§6). LiDAR scan is primary; bank card is the
-    // fallback for phones without LiDAR.
+    // How we get real-world scale. LiDAR is primary; wheel photo is the
+    // markerless fallback / cross-check for any phone.
     @Published var mode: MeasurementMode = .arKit
+    @Published var wheelSize: WheelSize = .road700x25
 
-    // Capture output (bank-card photo mode)
+    // Capture output (wheel photo mode)
     @Published var capturedImage: UIImage?
-    @Published var markerCornersPx: [Point2] = []
-    @Published var captureRejection: MarkerGeometry.Rejection?
+    /// Wheel reference taps (pixels): rear hub, front hub, rear ground contact.
+    @Published var rearHubPx: Point2?
+    @Published var frontHubPx: Point2?
+    @Published var groundContactPx: Point2?
 
     // Tapping output: landmark -> pixel in the captured image's coordinate space.
     @Published var landmarkPx: [Landmark: Point2] = [:]
@@ -46,11 +49,7 @@ final class CheckFlowModel: ObservableObject {
     /// Human-readable debug dump of the most recent successful run.
     @Published var lastDebugText: String = ""
 
-    private var checker: PositionChecker {
-        PositionChecker(rules: .current,
-                        markerWidthMM: BankCard.widthMM,
-                        markerHeightMM: BankCard.heightMM)
-    }
+    private var checker: PositionChecker { PositionChecker(rules: .current) }
 
     func start() { path = [] } // root shows onboarding
 
@@ -58,8 +57,9 @@ final class CheckFlowModel: ObservableObject {
 
     func reset() {
         capturedImage = nil
-        markerCornersPx = []
-        captureRejection = nil
+        rearHubPx = nil
+        frontHubPx = nil
+        groundContactPx = nil
         landmarkPx = [:]
         landmark3D = [:]
         report = nil
@@ -72,6 +72,11 @@ final class CheckFlowModel: ObservableObject {
         mode == .arKit ? .arkit : .capture
     }
 
+    /// Have all three wheel reference points been placed?
+    var wheelReferencePlaced: Bool {
+        rearHubPx != nil && frontHubPx != nil && groundContactPx != nil
+    }
+
     /// ARKit path: compute the report from collected 3D landmark points.
     func computeResultFromARKit() {
         let override = useSetbackOverride ? setbackOverrideMm : nil
@@ -81,6 +86,24 @@ final class CheckFlowModel: ObservableObject {
         case .success(let r):
             report = r; checkError = nil
             logRun(report: r, points3D: landmark3D)
+        case .failure(let e): report = nil; checkError = e
+        }
+    }
+
+    /// Wheel-photo path: scale from the bike's wheel, then evaluate the landmarks.
+    func computeResultFromWheel() {
+        guard let rear = rearHubPx, let front = frontHubPx, let ground = groundContactPx else {
+            checkError = .missingLandmarks; report = nil; return
+        }
+        let override = useSetbackOverride ? setbackOverrideMm : nil
+        switch checker.check(landmarksPx: landmarkPx,
+                             rearHubPx: rear, frontHubPx: front, groundContactPx: ground,
+                             wheelDiameterMM: wheelSize.diameterMM,
+                             heightCm: heightCm,
+                             setbackOverrideMm: override) {
+        case .success(let r):
+            report = r; checkError = nil
+            logRun(report: r, points3D: [:])
         case .failure(let e): report = nil; checkError = e
         }
     }
@@ -99,46 +122,5 @@ final class CheckFlowModel: ObservableObject {
     /// All six landmarks placed?
     var allLandmarksPlaced: Bool {
         Landmark.captureOrder.allSatisfy { landmarkPx[$0] != nil }
-    }
-
-    /// Run the pure pipeline and store the report (or error).
-    func computeResult() {
-        guard let image = capturedImage else { return }
-        let w = Double(image.size.width * image.scale)
-        let h = Double(image.size.height * image.scale)
-        let override = useSetbackOverride ? setbackOverrideMm : nil
-
-        let result = checker.check(markerCornersPx: canonicalCardCorners(markerCornersPx),
-                                   landmarksPx: landmarkPx,
-                                   heightCm: heightCm,
-                                   setbackOverrideMm: override,
-                                   frameWidth: w,
-                                   frameHeight: h,
-                                   // Capture was already validated at S3; don't
-                                   // re-reject here.
-                                   validateCapture: false)
-
-        switch result {
-        case .success(let r):
-            report = r
-            checkError = nil
-            logRun(report: r, points3D: [:])   // card mode has no 3D points
-        case .failure(let e):
-            report = nil
-            checkError = e
-        }
-    }
-
-    /// Reorder the four tapped card corners so the card's LONG edge maps to the
-    /// homography's x-axis (the card's known 85.6 mm width). Because the card is
-    /// placed level, its long edge is real-world horizontal — so this makes the
-    /// rectified x = horizontal regardless of how the photo is rotated. All
-    /// measurements are distance/abs based, so the vertical sign is irrelevant.
-    private func canonicalCardCorners(_ c: [Point2]) -> [Point2] {
-        guard c.count == 4 else { return c }
-        let topLen = Geometry.distance(c[0], c[1])   // tapped top edge
-        let leftLen = Geometry.distance(c[0], c[3])  // tapped left edge
-        if topLen >= leftLen { return c }            // top already the long edge
-        return [c[3], c[0], c[1], c[2]]              // rotate so long edge -> top
     }
 }

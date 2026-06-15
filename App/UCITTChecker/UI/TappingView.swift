@@ -26,7 +26,6 @@ struct TappingView: View {
                         .resizable()
                         .scaledToFit()
 
-                    MarkerOutline(corners: flow.markerCornersPx, fit: fit)
                     placedPoints(fit: fit)
 
                     // Gesture surface.
@@ -110,7 +109,7 @@ struct TappingView: View {
             if session.allPlaced {
                 Button("Results") {
                     flow.landmarkPx = session.points
-                    flow.computeResult()
+                    flow.computeResultFromWheel()
                     flow.advance(to: .results)
                 }
                 .buttonStyle(.borderedProminent)
@@ -186,24 +185,5 @@ struct TappingView: View {
     private func chipColor(_ landmark: Landmark) -> Color {
         if landmark == session.active { return .orange }
         return session.points[landmark] != nil ? .green : .gray
-    }
-}
-
-/// Draws the detected marker quad over the image for confidence (§4 S3/S4).
-struct MarkerOutline: View {
-    let corners: [Point2]
-    let fit: ImageFit
-
-    var body: some View {
-        if corners.count == 4 {
-            Path { path in
-                let pts = corners.map { fit.toView($0) }
-                path.move(to: pts[0])
-                for p in pts.dropFirst() { path.addLine(to: p) }
-                path.closeSubpath()
-            }
-            .stroke(.green, lineWidth: 2)
-            .allowsHitTesting(false)
-        }
     }
 }

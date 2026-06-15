@@ -1,6 +1,7 @@
 import SwiftUI
+import UCITTCore
 
-/// S2 — rider inputs (§4).
+/// S2 — rider inputs.
 struct RiderInputView: View {
     @EnvironmentObject private var flow: CheckFlowModel
 
@@ -28,6 +29,18 @@ struct RiderInputView: View {
 
             Section("Mode") {
                 LabeledContent("Measuring with", value: flow.mode.displayName)
+            }
+
+            if flow.mode == .wheel {
+                Section("Wheel size") {
+                    Picker("Wheel / tyre", selection: $flow.wheelSize) {
+                        ForEach(WheelSize.allCases) { size in
+                            Text(size.displayName).tag(size)
+                        }
+                    }
+                    Text("Read the tyre sidewall (e.g. 700×25c). This sets the scale for the photo.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             }
         }
         .navigationTitle("Rider")

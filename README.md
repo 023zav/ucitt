@@ -10,11 +10,13 @@ comes from either a bank card you already own or ARKit depth.
 
 ## Two measurement modes
 
-- **Bank card (any iPhone):** one side-on photo with a standard ISO/IEC 7810
-  card (every credit/debit/ID card is exactly 85.6 × 54 mm) in the cockpit
-  plane. A homography maps pixels → mm; you then tap the six landmarks.
-- **ARKit / LiDAR (Pro devices):** markerless. Aim the on-screen reticle at each
-  landmark and tap to capture a gravity-aligned 3D point; no reference object.
+- **LiDAR scan (Pro devices, primary):** markerless. Aim the on-screen reticle
+  at each landmark and tap to capture a gravity-aligned 3D point (LiDAR depth at
+  the reticle); no reference object.
+- **Wheel photo (any iPhone, fallback / cross-check):** one square-on side-on
+  photo. Scale comes from the bike's own wheel — tap the two hub centers (their
+  line is horizontal) and a tyre-to-ground contact (hub→ground = wheel radius),
+  then the six landmarks. Nothing to attach.
 
 ## What it measures
 

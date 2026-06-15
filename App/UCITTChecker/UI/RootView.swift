@@ -11,11 +11,11 @@ struct RootView: View {
                     switch step {
                     case .onboarding: OnboardingView()
                     case .riderInput: RiderInputView()
-                    case .capture:    CaptureView()
-                    case .cardCorners: CardCornerView()
-                    case .tapping:    TappingView()
-                    case .arkit:      ARKitMeasureView()
-                    case .results:    ResultsView()
+                    case .capture:        CaptureView()
+                    case .wheelReference: WheelReferenceView()
+                    case .tapping:        TappingView()
+                    case .arkit:          ARKitMeasureView()
+                    case .results:        ResultsView()
                     }
                 }
         }

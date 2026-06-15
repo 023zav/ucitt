@@ -1,7 +1,8 @@
 import SwiftUI
 import UCITTCore
 
-/// S3 — capture with a side-on guide, then detect + validate the marker (§4).
+/// Wheel mode S3 — take one square-on side-on photo of the whole bike. Scale and
+/// landmarks are tapped on the still afterwards.
 struct CaptureView: View {
     @EnvironmentObject private var flow: CheckFlowModel
     @StateObject private var vm = CaptureViewModel()
@@ -21,9 +22,6 @@ struct CaptureView: View {
 
             VStack {
                 Spacer()
-                if let rejection = flow.captureRejection {
-                    rejectionBanner(rejection)
-                }
                 captureButton
                     .padding(.bottom, 24)
             }
@@ -36,13 +34,13 @@ struct CaptureView: View {
 
     private var guideOverlay: some View {
         GeometryReader { geo in
-            // A simple level/side-on hint frame.
             RoundedRectangle(cornerRadius: 12)
                 .stroke(.white.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [8]))
                 .padding(24)
             VStack {
-                Text("Bike fully side-on · card level & sharp")
+                Text("Whole bike side-on · square-on · both wheels in frame")
                     .font(.caption.bold())
+                    .multilineTextAlignment(.center)
                     .padding(8)
                     .background(.black.opacity(0.5), in: Capsule())
                     .foregroundStyle(.white)
@@ -71,37 +69,12 @@ struct CaptureView: View {
         defer { isCapturing = false }
         guard let image = await vm.capturePhotoOnly() else { return }
 
-        // No auto-detection — the card corners are tapped by hand next (robust).
+        // Wheel reference points are tapped next (robust, markerless).
         flow.capturedImage = image
-        flow.markerCornersPx = []
-        flow.captureRejection = nil
+        flow.rearHubPx = nil
+        flow.frontHubPx = nil
+        flow.groundContactPx = nil
         vm.stop()
-        flow.advance(to: .cardCorners)
-    }
-
-    @ViewBuilder
-    private func rejectionBanner(_ rejection: MarkerGeometry.Rejection) -> some View {
-        Text(reason(for: rejection))
-            .font(.callout.bold())
-            .foregroundStyle(.white)
-            .padding(12)
-            .frame(maxWidth: .infinity)
-            .background(.red.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-            .padding(.bottom, 8)
-    }
-
-    private func reason(for rejection: MarkerGeometry.Rejection) -> String {
-        switch rejection {
-        case .notLevel(let t):
-            return "Card not level (tilted \(String(format: "%.1f", t))°). Re-level and retry."
-        case .tooSmall(let c):
-            return "Card too small in frame (\(String(format: "%.0f", c))%). Move closer."
-        case .tooMuchPerspective:
-            return "Too much perspective. Get square-on to the card."
-        case .wrongCornerCount(let n):
-            return n == 0 ? "No card found. Frame it fully and keep it sharp."
-                          : "Card detection unclear. Retry."
-        }
+        flow.advance(to: .wheelReference)
     }
 }

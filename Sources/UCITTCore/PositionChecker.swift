@@ -102,4 +102,33 @@ public struct PositionChecker {
                                          rules: rules)
         return .success(report)
     }
+
+    /// Wheel path: scale a side-on photo from the bike's wheel instead of a
+    /// placed marker. `rearHubPx`/`frontHubPx` define horizontal; the rear
+    /// hub-to-ground distance is the wheel radius (metric scale).
+    public func check(landmarksPx: [Landmark: Point2],
+                      rearHubPx: Point2,
+                      frontHubPx: Point2,
+                      groundContactPx: Point2,
+                      wheelDiameterMM: Double,
+                      heightCm: Double,
+                      setbackOverrideMm: Double? = nil) -> Result<ResultReport, Failure> {
+        guard let rect = WheelRectifier(rearHub: rearHubPx, frontHub: frontHubPx,
+                                        groundContact: groundContactPx,
+                                        wheelDiameterMM: wheelDiameterMM) else {
+            return .failure(.degenerateMarker)
+        }
+        var mmPoints: [Landmark: Point2] = [:]
+        for (landmark, px) in landmarksPx {
+            mmPoints[landmark] = rect.mm(px)
+        }
+        guard let rawMeasurements = Measurement.all(points: mmPoints) else {
+            return .failure(.missingLandmarks)
+        }
+        let report = ReportBuilder.build(rawMeasurements: rawMeasurements,
+                                         heightCm: heightCm,
+                                         setbackOverrideMm: setbackOverrideMm,
+                                         rules: rules)
+        return .success(report)
+    }
 }

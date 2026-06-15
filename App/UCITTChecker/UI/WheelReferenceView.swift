@@ -1,21 +1,18 @@
 import SwiftUI
 import UCITTCore
 
-/// Card mode S3.5 — tap the bank card's four corners on the captured photo.
-/// Supports pinch-to-zoom + pan of the whole photo (on top of the loupe) so the
-/// small card corners are easy to hit. The four points feed the homography
-/// (TL, TR, BR, BL → the card's known mm size).
-struct CardCornerView: View {
+/// Wheel mode S3.5 — tap the scale reference on the photo: the two wheel hub
+/// centers (their line is horizontal) and the rear tyre's ground contact (hub →
+/// ground = wheel radius). Supports pinch-to-zoom + pan + loupe for precision.
+struct WheelReferenceView: View {
     @EnvironmentObject private var flow: CheckFlowModel
-    @State private var corners: [Point2?] = Array(repeating: nil, count: 4)
-    @State private var activeCorner = 0
+    @State private var points: [Point2?] = Array(repeating: nil, count: 3)
+    @State private var active = 0
 
-    // Placement drag
     @State private var dragLocation: CGPoint?
-    @State private var draggingCorner: Int?
+    @State private var draggingPoint: Int?
     @State private var dragMode: DragMode?
 
-    // Canvas zoom / pan
     @State private var zoom: CGFloat = 1
     @State private var lastZoom: CGFloat = 1
     @State private var panOffset: CGSize = .zero
@@ -23,7 +20,11 @@ struct CardCornerView: View {
     @State private var isPinching = false
 
     private enum DragMode: Equatable { case move, place, pan, ignore }
-    private let labels = ["top-left", "top-right", "bottom-right", "bottom-left"]
+
+    private let labels = ["rear wheel hub (center)",
+                          "front wheel hub (center)",
+                          "rear tyre's ground contact"]
+    private let colors: [Color] = [.orange, .cyan, .yellow]
 
     var body: some View {
         GeometryReader { geo in
@@ -32,34 +33,26 @@ struct CardCornerView: View {
                 Color.black.ignoresSafeArea()
 
                 if let image = flow.capturedImage {
-                    // Zoom/pan-transformed canvas (image + overlays move together).
                     ZStack {
                         Image(uiImage: image).resizable().scaledToFit()
-                        quadOverlay(fit: fit)
-                        cornerDots(fit: fit)
+                        guideOverlay(fit: fit)
+                        pointDots(fit: fit)
                     }
                     .scaleEffect(zoom)
                     .offset(panOffset)
 
-                    // Gesture surface (below the controls so buttons still work).
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(combinedGesture(fit: fit, container: geo.size))
 
-                    if let loc = dragLocation,
-                       dragMode == .move || dragMode == .place {
-                        Loupe(image: image, fit: fit,
-                              focusViewPoint: toCanvas(loc, geo.size))
+                    if let loc = dragLocation, dragMode == .move || dragMode == .place {
+                        Loupe(image: image, fit: fit, focusViewPoint: toCanvas(loc, geo.size))
                             .position(x: loc.x, y: max(loc.y - 110, 90))
                             .allowsHitTesting(false)
                     }
                 }
 
-                VStack {
-                    promptBar
-                    Spacer()
-                    controls
-                }
+                VStack { promptBar; Spacer(); controls }
 
                 if zoom > 1.01 {
                     VStack {
@@ -77,7 +70,7 @@ struct CardCornerView: View {
                 }
             }
         }
-        .navigationTitle("Card corners")
+        .navigationTitle("Wheel scale")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -90,7 +83,6 @@ struct CardCornerView: View {
         return ImageFit(imagePixelSize: px, containerSize: container)
     }
 
-    /// Screen point → un-zoomed canvas point (inverse of scaleEffect+offset).
     private func toCanvas(_ screen: CGPoint, _ container: CGSize) -> CGPoint {
         let cx = container.width / 2, cy = container.height / 2
         return CGPoint(x: cx + (screen.x - cx - panOffset.width) / zoom,
@@ -103,16 +95,17 @@ struct CardCornerView: View {
         }
     }
 
-    private var allPlaced: Bool { corners.allSatisfy { $0 != nil } }
-    private var placedCount: Int { corners.compactMap { $0 }.count }
+    private var allPlaced: Bool { points.allSatisfy { $0 != nil } }
+    private var placedCount: Int { points.compactMap { $0 }.count }
 
     // MARK: Subviews
 
     private var promptBar: some View {
         VStack(spacing: 4) {
-            Text("Tap the \(labels[min(activeCorner, 3)]) corner of the card")
+            Text("Tap the \(labels[min(active, 2)])")
                 .font(.headline)
-            Text("\(placedCount)/4 placed · pinch to zoom · drag to pan / fine-tune")
+                .multilineTextAlignment(.center)
+            Text("\(placedCount)/3 placed · pinch to zoom · drag to pan / fine-tune")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -124,19 +117,21 @@ struct CardCornerView: View {
 
     private var controls: some View {
         HStack(spacing: 10) {
-            ForEach(0..<4, id: \.self) { i in
-                Button { activeCorner = i } label: {
-                    Text("\(i + 1)")
-                        .font(.caption.bold())
-                        .frame(width: 30, height: 30)
-                        .background(chipColor(i), in: Circle())
+            ForEach(0..<3, id: \.self) { i in
+                Button { active = i } label: {
+                    Text(shortLabel(i))
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8).padding(.vertical, 6)
+                        .background(chipColor(i), in: Capsule())
                         .foregroundStyle(.white)
                 }
             }
             Spacer()
             if allPlaced {
                 Button("Next") {
-                    flow.markerCornersPx = corners.compactMap { $0 }
+                    flow.rearHubPx = points[0]
+                    flow.frontHubPx = points[1]
+                    flow.groundContactPx = points[2]
                     flow.advance(to: .tapping)
                 }
                 .buttonStyle(.borderedProminent)
@@ -146,36 +141,36 @@ struct CardCornerView: View {
         .background(.ultraThinMaterial)
     }
 
-    private func chipColor(_ i: Int) -> Color {
-        if corners[i] != nil { return .green }
-        return i == activeCorner ? .orange : .gray
+    private func shortLabel(_ i: Int) -> String {
+        ["Rear hub", "Front hub", "Ground"][i]
     }
 
-    private func cornerDots(fit: ImageFit) -> some View {
-        ForEach(0..<4, id: \.self) { i in
-            if let p = corners[i] {
+    private func chipColor(_ i: Int) -> Color {
+        if points[i] != nil { return .green }
+        return i == active ? .orange : .gray
+    }
+
+    private func pointDots(fit: ImageFit) -> some View {
+        ForEach(0..<3, id: \.self) { i in
+            if let p = points[i] {
                 let v = fit.toView(p)
-                ZStack {
-                    Circle().fill(i == activeCorner ? Color.yellow : Color.cyan)
-                        .frame(width: 14 / zoom, height: 14 / zoom)
-                    Circle().stroke(.black, lineWidth: 1 / zoom)
-                        .frame(width: 14 / zoom, height: 14 / zoom)
-                }
-                .position(v)
-                .allowsHitTesting(false)
+                Circle().fill(colors[i])
+                    .frame(width: 14 / zoom, height: 14 / zoom)
+                    .overlay(Circle().stroke(.black, lineWidth: 1 / zoom))
+                    .position(v)
+                    .allowsHitTesting(false)
             }
         }
     }
 
-    private func quadOverlay(fit: ImageFit) -> some View {
+    /// A faint line between the two hubs once both are placed (sanity check).
+    private func guideOverlay(fit: ImageFit) -> some View {
         Path { path in
-            let pts = corners.compactMap { $0 }.map { fit.toView($0) }
-            guard pts.count == 4 else { return }
-            path.move(to: pts[0])
-            for p in pts.dropFirst() { path.addLine(to: p) }
-            path.closeSubpath()
+            guard let r = points[0], let f = points[1] else { return }
+            path.move(to: fit.toView(r))
+            path.addLine(to: fit.toView(f))
         }
-        .stroke(.green, lineWidth: 2 / zoom)
+        .stroke(.green.opacity(0.7), style: StrokeStyle(lineWidth: 1.5 / zoom, dash: [6 / zoom]))
         .allowsHitTesting(false)
     }
 
@@ -184,15 +179,8 @@ struct CardCornerView: View {
     private func combinedGesture(fit: ImageFit, container: CGSize) -> some Gesture {
         SimultaneousGesture(
             MagnifyGesture()
-                .onChanged { v in
-                    isPinching = true
-                    zoom = min(max(lastZoom * v.magnification, 1), 6)
-                }
-                .onEnded { _ in
-                    isPinching = false
-                    lastZoom = zoom
-                    if zoom <= 1.01 { resetZoom() }
-                },
+                .onChanged { v in isPinching = true; zoom = min(max(lastZoom * v.magnification, 1), 6) }
+                .onEnded { _ in isPinching = false; lastZoom = zoom; if zoom <= 1.01 { resetZoom() } },
             DragGesture(minimumDistance: 0)
                 .onChanged { v in handleDragChanged(v, fit: fit, container: container) }
                 .onEnded { _ in handleDragEnded() }
@@ -203,10 +191,10 @@ struct CardCornerView: View {
         if dragMode == nil {
             if isPinching { dragMode = .ignore; return }
             let startCanvas = toCanvas(v.startLocation, container)
-            if let i = nearestCorner(to: startCanvas, fit: fit) {
-                dragMode = .move; draggingCorner = i; activeCorner = i
-            } else if corners[activeCorner] == nil {
-                dragMode = .place; draggingCorner = activeCorner
+            if let i = nearestPoint(to: startCanvas, fit: fit) {
+                dragMode = .move; draggingPoint = i; active = i
+            } else if points[active] == nil {
+                dragMode = .place; draggingPoint = active
             } else if zoom > 1.01 {
                 dragMode = .pan
             } else {
@@ -216,8 +204,8 @@ struct CardCornerView: View {
         switch dragMode {
         case .move?, .place?:
             dragLocation = v.location
-            if let i = draggingCorner {
-                corners[i] = fit.toImage(toCanvas(v.location, container))
+            if let i = draggingPoint {
+                points[i] = fit.toImage(toCanvas(v.location, container))
             }
         case .pan?:
             panOffset = CGSize(width: lastPan.width + v.translation.width,
@@ -230,18 +218,18 @@ struct CardCornerView: View {
     private func handleDragEnded() {
         if dragMode == .pan { lastPan = panOffset }
         if dragMode == .move || dragMode == .place {
-            if let next = corners.firstIndex(where: { $0 == nil }) { activeCorner = next }
+            if let next = points.firstIndex(where: { $0 == nil }) { active = next }
         }
         dragMode = nil
-        draggingCorner = nil
+        draggingPoint = nil
         dragLocation = nil
     }
 
-    private func nearestCorner(to canvasPoint: CGPoint, fit: ImageFit) -> Int? {
+    private func nearestPoint(to canvasPoint: CGPoint, fit: ImageFit) -> Int? {
         let threshold: CGFloat = 28 / zoom
         var best: (Int, CGFloat)?
-        for i in 0..<4 {
-            guard let p = corners[i] else { continue }
+        for i in 0..<3 {
+            guard let p = points[i] else { continue }
             let v = fit.toView(p)
             let d = hypot(v.x - canvasPoint.x, v.y - canvasPoint.y)
             if d <= threshold, best == nil || d < best!.1 { best = (i, d) }

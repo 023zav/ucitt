@@ -108,7 +108,7 @@ final class CheckFlowModel: ObservableObject {
         let h = Double(image.size.height * image.scale)
         let override = useSetbackOverride ? setbackOverrideMm : nil
 
-        let result = checker.check(markerCornersPx: markerCornersPx,
+        let result = checker.check(markerCornersPx: canonicalCardCorners(markerCornersPx),
                                    landmarksPx: landmarkPx,
                                    heightCm: heightCm,
                                    setbackOverrideMm: override,
@@ -117,6 +117,7 @@ final class CheckFlowModel: ObservableObject {
                                    // Capture was already validated at S3; don't
                                    // re-reject here.
                                    validateCapture: false)
+
         switch result {
         case .success(let r):
             report = r
@@ -126,5 +127,18 @@ final class CheckFlowModel: ObservableObject {
             report = nil
             checkError = e
         }
+    }
+
+    /// Reorder the four tapped card corners so the card's LONG edge maps to the
+    /// homography's x-axis (the card's known 85.6 mm width). Because the card is
+    /// placed level, its long edge is real-world horizontal — so this makes the
+    /// rectified x = horizontal regardless of how the photo is rotated. All
+    /// measurements are distance/abs based, so the vertical sign is irrelevant.
+    private func canonicalCardCorners(_ c: [Point2]) -> [Point2] {
+        guard c.count == 4 else { return c }
+        let topLen = Geometry.distance(c[0], c[1])   // tapped top edge
+        let leftLen = Geometry.distance(c[0], c[3])  // tapped left edge
+        if topLen >= leftLen { return c }            // top already the long edge
+        return [c[3], c[0], c[1], c[2]]              // rotate so long edge -> top
     }
 }

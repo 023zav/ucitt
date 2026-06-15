@@ -35,6 +35,9 @@ final class CaptureViewModel: NSObject, ObservableObject {
     // MARK: Permissions & lifecycle
 
     func requestAccessAndConfigure() {
+        // Needed for UIDevice.current.orientation to report the physical
+        // orientation even though the app UI is portrait-locked.
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             isAuthorized = true
@@ -121,10 +124,25 @@ final class CaptureViewModel: NSObject, ObservableObject {
     }
 
     private func capturePhoto() async throws -> UIImage {
-        try await withCheckedThrowingContinuation { cont in
+        // Orient the capture to how the phone is physically held, so a landscape
+        // shot of a wide bike isn't saved rotated to portrait.
+        if let conn = photoOutput.connection(with: .video),
+           conn.isVideoOrientationSupported {
+            conn.videoOrientation = currentVideoOrientation()
+        }
+        return try await withCheckedThrowingContinuation { cont in
             self.captureContinuation = cont
             let settings = AVCapturePhotoSettings()
             self.photoOutput.capturePhoto(with: settings, delegate: self)
+        }
+    }
+
+    private func currentVideoOrientation() -> AVCaptureVideoOrientation {
+        switch UIDevice.current.orientation {
+        case .landscapeLeft:      return .landscapeRight
+        case .landscapeRight:     return .landscapeLeft
+        case .portraitUpsideDown: return .portraitUpsideDown
+        default:                  return .portrait
         }
     }
 }

@@ -23,7 +23,11 @@ struct ARKitMeasureView: View {
         .navigationTitle("Scan")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { magnify.toggle() } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                        .symbolVariant(magnify ? .circle.fill : .none)
+                }
                 Button { showHelp = true } label: {
                     Image(systemName: "questionmark.circle")
                 }
@@ -36,19 +40,14 @@ struct ARKitMeasureView: View {
 
     private var measuring: some View {
         ZStack {
+            // The reticle + loupe live in an overlay on the AR view, which
+            // ignores the safe area. That makes the crosshair's center exactly
+            // the full-screen center the raycast fires from — otherwise the
+            // crosshair (laid out inside the safe area) sits below the true
+            // aim point and the captured spot is off.
             ARContainer(controller: controller)
                 .ignoresSafeArea()
-
-            reticle
-
-            // Magnifier loupe over the reticle for precise aiming.
-            if magnify {
-                TimelineView(.periodic(from: .now, by: 0.08)) { _ in
-                    ReticleLoupe(snapshot: controller.arView?.snapshot())
-                }
-                .offset(y: -150)
-                .allowsHitTesting(false)
-            }
+                .overlay { reticleOverlay }
 
             VStack {
                 promptBar
@@ -56,20 +55,19 @@ struct ARKitMeasureView: View {
                 statusBanner
                 controls
             }
+        }
+    }
 
-            // Magnifier toggle, floating top-leading.
-            VStack {
-                HStack {
-                    Button { magnify.toggle() } label: {
-                        Image(systemName: magnify ? "plus.magnifyingglass" : "magnifyingglass")
-                            .padding(10)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    Spacer()
+    private var reticleOverlay: some View {
+        ZStack {
+            reticle
+            if magnify {
+                TimelineView(.periodic(from: .now, by: 0.08)) { _ in
+                    ReticleLoupe(snapshot: controller.arView?.snapshot())
                 }
-                Spacer()
+                .offset(y: -160)
+                .allowsHitTesting(false)
             }
-            .padding()
         }
     }
 
@@ -200,7 +198,7 @@ struct ARKitMeasureView: View {
 struct ReticleLoupe: View {
     let snapshot: UIImage?
     var diameter: CGFloat = 150
-    var zoom: CGFloat = 2.5
+    var zoom: CGFloat = 1.8
 
     var body: some View {
         ZStack {

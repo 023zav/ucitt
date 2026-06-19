@@ -9,8 +9,8 @@ struct RootView: View {
             OnboardingView()
                 .navigationDestination(for: FlowStep.self) { step in
                     switch step {
-                    case .onboarding: OnboardingView()
-                    case .riderInput: RiderInputView()
+                    case .onboarding:     OnboardingView()
+                    case .riderInput:     RiderInputView()
                     case .capture:        CaptureView()
                     case .wheelReference: WheelReferenceView()
                     case .tapping:        TappingView()
@@ -19,5 +19,6 @@ struct RootView: View {
                     }
                 }
         }
+        .toolbarBackground(Theme.bg, for: .navigationBar)
     }
 }

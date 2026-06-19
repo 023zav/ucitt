@@ -6,15 +6,19 @@ struct ResultsView: View {
     @EnvironmentObject private var flow: CheckFlowModel
 
     var body: some View {
-        Group {
-            if let report = flow.report {
-                content(report)
-            } else if let error = flow.checkError {
-                ContentUnavailableView("Couldn't compute result",
-                                       systemImage: "xmark.octagon",
-                                       description: Text(message(for: error)))
-            } else {
-                ProgressView()
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+
+            Group {
+                if let report = flow.report {
+                    content(report)
+                } else if let error = flow.checkError {
+                    ContentUnavailableView("Couldn't compute result",
+                                           systemImage: "xmark.octagon",
+                                           description: Text(message(for: error)))
+                } else {
+                    ProgressView().tint(Theme.accent)
+                }
             }
         }
         .navigationTitle("Results")
@@ -22,65 +26,89 @@ struct ResultsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("New check") { flow.reset() }
+                    .font(Theme.body(14, .semibold))
+                    .foregroundStyle(Theme.accent)
             }
         }
     }
 
     private func content(_ report: ResultReport) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                headline(report)
+            VStack(alignment: .leading, spacing: 14) {
+                VerdictBanner(report: report)
 
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Category: \(report.category.displayName)")
-                            .font(.headline)
-                        Text(report.categoryReason)
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Category + why
+                HStack(alignment: .top, spacing: 12) {
+                    CategoryBadge(text: report.category.displayName)
+                    Text(report.categoryReason)
+                        .font(Theme.body(12))
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .slipCard(padding: 14)
 
                 ForEach(report.measurements) { m in
-                    MeasurementRow(measurement: m)
+                    MeasurementCard(measurement: m)
                 }
 
                 if !report.flags.isEmpty {
-                    GroupBox("Notes") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(report.flags, id: \.self) { flag in
-                                Label(flag, systemImage: "info.circle")
-                                    .font(.footnote)
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionHeader("Notes")
+                        ForEach(report.flags, id: \.self) { flag in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.textTertiary)
+                                Text(flag)
+                                    .font(Theme.body(12))
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .slipCard()
                 }
 
                 DisclaimerBanner()
 
                 Text("Rules version: \(report.rulesVersion)")
-                    .font(.caption2).foregroundStyle(.tertiary)
-
-                ShareLink(item: shareText(report)) {
-                    Label("Share result", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
+                    .font(Theme.mono(10))
+                    .foregroundStyle(Theme.textTertiary)
 
                 debugSection
             }
-            .padding()
+            .padding(16)
         }
+        .safeAreaInset(edge: .bottom) { shareBar(report) }
+    }
+
+    private func shareBar(_ report: ResultReport) -> some View {
+        ShareLink(item: shareText(report)) {
+            HStack(spacing: 8) {
+                Text("SHARE REPORT").font(Theme.body(15, .heavy))
+                Image(systemName: "square.and.arrow.up").font(.system(size: 15, weight: .bold))
+            }
+            .foregroundStyle(Theme.onAccent)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(Theme.accent)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.rCard))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12).padding(.bottom, 10)
+        .background(Theme.bg)
     }
 
     @ViewBuilder
     private var debugSection: some View {
         if !flow.lastDebugText.isEmpty {
-            DisclosureGroup("Debug data") {
+            DisclosureGroup {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(flow.lastDebugText)
-                        .font(.system(.caption2, design: .monospaced))
+                        .font(Theme.mono(11))
+                        .foregroundStyle(Theme.textSecondary)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -93,37 +121,40 @@ struct ResultsView: View {
                             Label("Full log", systemImage: "doc.text")
                         }
                     }
-                    .font(.footnote)
+                    .font(Theme.body(12))
+                    .tint(Theme.accent)
                 }
-                .padding(.top, 4)
+                .padding(.top, 6)
+            } label: {
+                Text("Debug data")
+                    .font(Theme.body(13, .semibold))
+                    .foregroundStyle(Theme.textSecondary)
             }
-            .font(.footnote)
+            .tint(Theme.textSecondary)
+            .padding(14)
+            .background(Theme.surface)
+            .overlay(RoundedRectangle(cornerRadius: Theme.rCard).stroke(Theme.line, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.rCard))
         }
-    }
-
-    private func headline(_ report: ResultReport) -> some View {
-        let (text, color, icon): (String, Color, String) = {
-            switch report.overallState {
-            case .pass:       return ("Within limits", .green, "checkmark.seal.fill")
-            case .borderline: return ("Borderline — re-check", .orange, "exclamationmark.triangle.fill")
-            case .fail:       return ("Over a limit", .red, "xmark.seal.fill")
-            }
-        }()
-        return HStack {
-            Image(systemName: icon).font(.title)
-            Text(text).font(.title2.bold())
-        }
-        .foregroundStyle(color)
     }
 
     private func shareText(_ report: ResultReport) -> String {
-        var lines = ["UCI TT Position Check (\(report.category.displayName))"]
+        var lines = ["TT Fit Check — UCI TT Position (\(report.category.displayName))"]
         for m in report.measurements {
-            lines.append(MeasurementRow.summaryLine(m))
+            lines.append(summaryLine(m))
         }
         lines.append("")
         lines.append(ResultReport.disclaimer)
         return lines.joined(separator: "\n")
+    }
+
+    private func summaryLine(_ m: EvaluatedMeasurement) -> String {
+        func f(_ v: Double) -> String { String(format: "%.0f", v) }
+        if m.limit.isNaN {
+            return "• \(m.kind.displayName): \(f(m.value)) \(m.unit)"
+        }
+        return "• \(m.kind.displayName): \(f(m.value)) \(m.unit) " +
+               "(\(m.direction == .max ? "max" : "min") \(f(m.limit)), \(m.state.rawValue))"
     }
 
     private func message(for error: PositionChecker.Failure) -> String {
@@ -133,62 +164,4 @@ struct ResultsView: View {
         case .missingLandmarks: return "Not all landmarks were placed."
         }
     }
-}
-
-/// One measurement row with value, limit, margin and a colour-coded state.
-struct MeasurementRow: View {
-    let measurement: EvaluatedMeasurement
-
-    var body: some View {
-        let m = measurement
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(m.kind.displayName).font(.headline)
-                if m.limit.isNaN {
-                    Text("informational")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text("\(m.direction == .max ? "max" : "min") \(format(m.limit)) \(m.unit) · margin \(marginString(m))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            Text("\(format(m.value)) \(m.unit)")
-                .font(.title3.monospacedDigit())
-            stateBadge(m)
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func stateBadge(_ m: EvaluatedMeasurement) -> some View {
-        let (color, label): (Color, String) = {
-            if m.limit.isNaN { return (.secondary, "—") }
-            switch m.state {
-            case .pass: return (.green, "PASS")
-            case .borderline: return (.orange, "CHECK")
-            case .fail: return (.red, "FAIL")
-            }
-        }()
-        return Text(label)
-            .font(.caption2.bold())
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(color.opacity(0.18), in: Capsule())
-            .foregroundStyle(color)
-    }
-
-    static func summaryLine(_ m: EvaluatedMeasurement) -> String {
-        if m.limit.isNaN {
-            return "• \(m.kind.displayName): \(format(m.value)) \(m.unit)"
-        }
-        return "• \(m.kind.displayName): \(format(m.value)) \(m.unit) " +
-               "(\(m.direction == .max ? "max" : "min") \(format(m.limit)), \(m.state.rawValue))"
-    }
-
-    private func marginString(_ m: EvaluatedMeasurement) -> String { Self.marginString(m) }
-    private static func marginString(_ m: EvaluatedMeasurement) -> String {
-        let sign = m.margin >= 0 ? "+" : ""
-        return "\(sign)\(format(m.margin)) \(m.unit)"
-    }
-    private func format(_ v: Double) -> String { Self.format(v) }
-    private static func format(_ v: Double) -> String { String(format: "%.0f", v) }
 }

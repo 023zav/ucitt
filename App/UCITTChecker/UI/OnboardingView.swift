@@ -6,118 +6,176 @@ struct OnboardingView: View {
     @EnvironmentObject private var flow: CheckFlowModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("UCI TT Position Checker")
-                    .font(.title.bold())
+        ZStack {
+            Theme.bg.ignoresSafeArea()
 
-                Text("A quick pre-check for your TT cockpit. Not a UCI certification.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    BrandMark().padding(.top, 4)
 
-                GroupBox("Measurement mode") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Picker("Mode", selection: $flow.mode) {
-                            ForEach(MeasurementMode.allCases) { mode in
-                                Text(mode.displayName).tag(mode)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Check your\nUCI cockpit.")
+                            .font(Theme.display(34))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text("A ±5–10 mm pre-check before race day — not a UCI certification.")
+                            .font(Theme.body(14))
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader("Measurement mode")
+                        ModeCard(mode: .wheel, selected: flow.mode == .wheel, recommended: true) {
+                            flow.mode = .wheel
+                        }
+                        ModeCard(mode: .arKit, selected: flow.mode == .arKit, recommended: false) {
+                            flow.mode = .arKit
+                        }
+                    }
+
+                    if let illustration {
+                        illustration
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 160)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.line, lineWidth: 1))
+                            .accessibilityLabel(illustrationAccessibility)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader("How to set up")
+                        ForEach(Array(setupSteps.enumerated()), id: \.offset) { i, step in
+                            HStack(alignment: .top, spacing: 12) {
+                                Text(String(format: "%02d", i + 1))
+                                    .font(Theme.mono(12, .bold))
+                                    .foregroundStyle(Theme.accent)
+                                    .padding(.top, 1)
+                                Text(step)
+                                    .font(Theme.body(13))
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        .pickerStyle(.segmented)
-
-                        Text(modeBlurb)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .slipCard()
                 }
-
-                GroupBox("How to set up") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        if let illustration {
-                            illustration
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: .infinity, maxHeight: 150)
-                                .accessibilityLabel(illustrationAccessibility)
-                        }
-                        ForEach(setupSteps, id: \.text) { step in
-                            Label(step.text, systemImage: step.icon)
-                        }
-                    }
-                    .font(.footnote)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                DisclaimerBanner()
+                .padding(20)
             }
-            .padding()
         }
-        .safeAreaInset(edge: .bottom) {
-            Button {
-                flow.advance(to: .riderInput)
-            } label: {
-                Text("Continue")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal)
-            .padding(.vertical, 10)
-            .background(.bar)
-        }
+        .safeAreaInset(edge: .bottom) { bottomBar }
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var modeBlurb: String {
-        switch flow.mode {
-        case .wheel:
-            return "Take one square-on side-on photo of the whole bike. Scale comes from your wheel — no object to attach. Works on any iPhone."
-        case .arKit:
-            return "Point the phone at the bike and tap each landmark in 3D. Best on Pro models with LiDAR. No reference object."
+    private var bottomBar: some View {
+        VStack(spacing: 8) {
+            Button { flow.advance(to: .riderInput) } label: {
+                HStack(spacing: 8) {
+                    Text("CONTINUE").tracking(0.5)
+                    Image(systemName: "arrow.right").font(.system(size: 15, weight: .heavy))
+                }
+            }
+            .buttonStyle(SlipPrimary())
+
+            Text("Pre-check only · re-check anything within 10 mm")
+                .font(Theme.mono(10))
+                .foregroundStyle(Theme.textTertiary)
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 12).padding(.bottom, 10)
+        .background(Theme.bg)
     }
 
-    /// The per-mode diagram, shown only once its asset has been added.
+    // MARK: Per-mode content
+
     private var illustrationName: String {
         flow.mode == .wheel ? "WheelPlacement" : "ARKitScan"
     }
-
     private var illustration: Image? {
         UIImage(named: illustrationName).map(Image.init(uiImage:))
     }
-
     private var illustrationAccessibility: String {
         flow.mode == .wheel
             ? "How to frame the bike for a wheel-scaled photo"
             : "Aiming the phone at the bike to capture landmarks"
     }
 
-    private struct Step { let text: String; let icon: String }
-
-    private var setupSteps: [Step] {
+    private var setupSteps: [String] {
         switch flow.mode {
         case .wheel:
             return [
-                Step(text: "Pick your wheel/tyre size on the next screen — it sets the scale.",
-                     icon: "bicycle"),
-                Step(text: "Stand back and shoot the whole bike dead side-on, square to the camera.",
-                     icon: "camera"),
-                Step(text: "Keep both wheels fully in frame and the bike on level ground.",
-                     icon: "ruler"),
-                Step(text: "You'll then tap the two wheel hubs + a tyre contact point, and the 6 landmarks.",
-                     icon: "hand.tap")
+                "Pick your wheel / tyre size on the next screen — it sets the scale.",
+                "Stand back and shoot the whole bike dead side-on, square to the camera.",
+                "Keep both wheels fully in frame and the bike on level ground.",
+                "Tap the two wheel hubs + a tyre contact point, then the 6 landmarks."
             ]
         case .arKit:
             return [
-                Step(text: "Use a Pro iPhone with LiDAR for best accuracy.",
-                     icon: "cube.transparent"),
-                Step(text: "Slowly move the phone so it builds a 3D map of the bike.",
-                     icon: "arkit"),
-                Step(text: "Aim the on-screen reticle at each landmark and tap to capture it.",
-                     icon: "scope"),
-                Step(text: "Keep the bike still and well lit while you place all six points.",
-                     icon: "light.max")
+                "Use a Pro iPhone with LiDAR for best accuracy.",
+                "Slowly move the phone so it builds a 3D map of the bike.",
+                "Aim the on-screen reticle at each landmark and tap to capture it.",
+                "Keep the bike still and well lit while you place all six points."
             ]
         }
+    }
+}
+
+/// A selectable measurement-mode card.
+struct ModeCard: View {
+    let mode: MeasurementMode
+    let selected: Bool
+    var recommended: Bool = false
+    let action: () -> Void
+
+    private var title: String { mode == .wheel ? "Wheel Photo" : "LiDAR Scan" }
+    private var subtitle: String {
+        mode == .wheel
+            ? "One side-on shot. Scale from your own wheel. Any iPhone."
+            : "Markerless 3D capture. Pro models with LiDAR."
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(Theme.body(16, .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(subtitle)
+                        .font(Theme.body(12))
+                        .foregroundStyle(Theme.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if recommended {
+                        Text("RECOMMENDED")
+                            .font(Theme.mono(10, .bold))
+                            .tracking(1)
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Theme.accent.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                            .padding(.top, 5)
+                    }
+                }
+                Spacer(minLength: 8)
+                ZStack {
+                    Circle()
+                        .stroke(selected ? Color.clear : Theme.line, lineWidth: 1.5)
+                    if selected {
+                        Circle().fill(Theme.accent)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .black))
+                            .foregroundStyle(Theme.onAccent)
+                    }
+                }
+                .frame(width: 22, height: 22)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(selected ? Theme.accent.opacity(0.08) : Theme.surface)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(selected ? Theme.accent : Theme.line, lineWidth: 1.5))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
     }
 }

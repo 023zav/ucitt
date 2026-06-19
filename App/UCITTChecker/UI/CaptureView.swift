@@ -10,6 +10,8 @@ struct CaptureView: View {
 
     var body: some View {
         ZStack {
+            Color.black.ignoresSafeArea()
+
             if vm.isAuthorized {
                 CameraPreview(session: vm.session)
                     .ignoresSafeArea()
@@ -23,7 +25,7 @@ struct CaptureView: View {
             VStack {
                 Spacer()
                 captureButton
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 28)
             }
         }
         .navigationTitle("Capture")
@@ -34,20 +36,30 @@ struct CaptureView: View {
 
     private var guideOverlay: some View {
         GeometryReader { geo in
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(.white.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [8]))
-                .padding(24)
-            VStack {
-                Text("Whole bike side-on · square-on · both wheels in frame")
-                    .font(.caption.bold())
-                    .multilineTextAlignment(.center)
-                    .padding(8)
-                    .background(.black.opacity(0.5), in: Capsule())
-                    .foregroundStyle(.white)
-                    .padding(.top, 12)
-                Spacer()
+            ZStack {
+                // Framing field
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Theme.accent.opacity(0.55), style: StrokeStyle(lineWidth: 1.5, dash: [8]))
+                    .padding(20)
+
+                // HUD corner brackets
+                VStack {
+                    HStack { HUDCorner(corner: .tl); Spacer(); HUDCorner(corner: .tr) }
+                    Spacer()
+                    HStack { HUDCorner(corner: .bl); Spacer(); HUDCorner(corner: .br) }
+                }
+                .padding(28)
+
+                // Guidance + status
+                VStack(spacing: 10) {
+                    HStack(spacing: 8) {
+                        StatusPill(text: "ALIGN BIKE — DEAD SIDE-ON", color: Theme.accent)
+                    }
+                    .padding(.top, 8)
+                    Spacer()
+                }
             }
-            .frame(width: geo.size.width)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
     }
 
@@ -56,9 +68,11 @@ struct CaptureView: View {
             Task { await capture() }
         } label: {
             ZStack {
-                Circle().fill(.white).frame(width: 72, height: 72)
-                Circle().stroke(.white, lineWidth: 4).frame(width: 84, height: 84)
-                if isCapturing { ProgressView() }
+                Circle().stroke(Theme.accent, lineWidth: 3).frame(width: 84, height: 84)
+                Circle().fill(Theme.accent).frame(width: 68, height: 68)
+                if isCapturing {
+                    ProgressView().tint(Theme.onAccent)
+                }
             }
         }
         .disabled(!vm.isAuthorized || isCapturing)

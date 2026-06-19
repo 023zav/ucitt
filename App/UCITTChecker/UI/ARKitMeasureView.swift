@@ -18,7 +18,7 @@ struct ARKitMeasureView: View {
             } else {
                 ContentUnavailableView("ARKit not available",
                                        systemImage: "arkit",
-                                       description: Text("This device doesn't support world tracking. Use Bank card mode instead."))
+                                       description: Text("This device doesn't support world tracking. Use Wheel photo mode instead."))
             }
         }
         .navigationTitle("Scan")
@@ -76,51 +76,72 @@ struct ARKitMeasureView: View {
     @ViewBuilder
     private var statusBanner: some View {
         if controller.lastCaptureFailed {
-            banner("Couldn't find a surface there — aim at the bike and try again.", .red)
+            banner("Couldn't find a surface there — aim at the bike and try again.", Theme.fail)
         } else if let d = controller.lastCaptureDistanceM {
             if d > 2.5 {
-                banner(String(format: "Last point is %.1f m away — that may be the wall/floor behind the bike. Re-capture if it's wrong.", d), .orange)
+                banner(String(format: "Last point is %.1f m away — that may be the wall/floor behind the bike. Re-capture if it's wrong.", d), Theme.check)
             } else {
-                banner(String(format: "Placed at %.2f m. Check the orange dot sits on the bike.", d), .green)
+                banner(String(format: "Placed at %.2f m. Check the dot sits on the bike.", d), Theme.pass)
             }
         }
     }
 
     private func banner(_ text: String, _ color: Color) -> some View {
-        Text(text)
-            .font(.callout.bold())
-            .foregroundStyle(.white)
-            .padding(10)
-            .frame(maxWidth: .infinity)
-            .background(color.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-            .padding(.bottom, 6)
+        HStack(spacing: 8) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(text)
+                .font(Theme.body(13, .semibold))
+                .foregroundStyle(Theme.textPrimary)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.16))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(color.opacity(0.4), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
+        .padding(.bottom, 6)
     }
 
     private var promptBar: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             if controller.allPlaced {
-                Label("All 6 points placed", systemImage: "checkmark.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(.green)
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.pass)
+                    Text("ALL 6 POINTS PLACED")
+                        .font(Theme.mono(12, .bold)).tracking(1)
+                        .foregroundStyle(Theme.textPrimary)
+                }
                 Text("Tap a point below to re-do it, or see your results.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(Theme.body(12)).foregroundStyle(Theme.textSecondary)
             } else {
-                Text("\(controller.activeIndex + 1)/\(controller.order.count) · \(controller.active.title)")
-                    .font(.headline)
+                HStack {
+                    Text("POINT \(controller.activeIndex + 1) / \(controller.order.count)")
+                        .font(Theme.mono(11, .bold)).tracking(1)
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Text(controller.active.title.uppercased())
+                        .font(Theme.mono(11, .bold))
+                        .foregroundStyle(Theme.accent)
+                }
                 Text(controller.active.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                    .font(Theme.body(12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !controller.trackingNormal {
-                    Label("Move the phone slowly to map the bike", systemImage: "move.3d")
-                        .font(.caption).foregroundStyle(.orange)
+                    HStack(spacing: 6) {
+                        Image(systemName: "move.3d").foregroundStyle(Theme.check)
+                        Text("Move the phone slowly to map the bike")
+                            .font(Theme.body(11)).foregroundStyle(Theme.check)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
     }
 
     private var controls: some View {
@@ -135,15 +156,15 @@ struct ARKitMeasureView: View {
                             if controller.points[landmark] != nil {
                                 Image(systemName: "checkmark").font(.system(size: 9, weight: .bold))
                             }
-                            Text(landmark.shortLabel).font(.caption2.bold())
+                            Text(landmark.shortLabel).font(Theme.mono(10, .bold))
                         }
+                        .foregroundStyle(chipText(landmark))
                         .padding(.horizontal, 8).padding(.vertical, 6)
-                        .background(chipColor(landmark), in: Capsule())
-                        .overlay(
-                            Capsule().stroke(.white, lineWidth: landmark == controller.active ? 2 : 0)
-                        )
-                        .foregroundStyle(.white)
+                        .background(chipFill(landmark))
+                        .overlay(Capsule().stroke(landmark == controller.active ? Theme.accent : Color.clear, lineWidth: 1.5))
+                        .clipShape(Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -151,14 +172,14 @@ struct ARKitMeasureView: View {
             Button {
                 controller.captureCurrent()
             } label: {
-                Label(controller.points[controller.active] == nil
-                      ? "Capture \(controller.active.title)"
-                      : "Re-capture \(controller.active.title)",
-                      systemImage: "scope")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    Image(systemName: "scope").font(.system(size: 15, weight: .bold))
+                    Text((controller.points[controller.active] == nil ? "CAPTURE " : "RE-CAPTURE ")
+                         + controller.active.title.uppercased())
+                        .font(Theme.body(14, .heavy))
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(SlipPrimary())
 
             // Once everything is placed, an unmissable full-width CTA.
             if controller.allPlaced {
@@ -167,23 +188,31 @@ struct ARKitMeasureView: View {
                     flow.computeResultFromARKit()
                     flow.advance(to: .results)
                 } label: {
-                    Label("See results", systemImage: "arrow.right.circle.fill")
-                        .frame(maxWidth: .infinity)
+                    HStack(spacing: 8) {
+                        Text("SEE RESULTS").font(Theme.body(14, .heavy))
+                        Image(systemName: "arrow.right.circle.fill").font(.system(size: 16, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Theme.pass)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.rCard))
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(.green)
+                .buttonStyle(.plain)
             }
         }
         .padding(12)
         .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
     }
 
-    private func chipColor(_ landmark: Landmark) -> Color {
-        // Placed wins over active, so completed points read as green (done)
-        // even while selected; the selection is shown by the white ring.
-        if controller.points[landmark] != nil { return .green }
-        return landmark == controller.active ? .orange : .gray
+    private func chipFill(_ landmark: Landmark) -> Color {
+        if controller.points[landmark] != nil { return Theme.pass.opacity(0.18) }
+        return Theme.surfaceRaised
+    }
+    private func chipText(_ landmark: Landmark) -> Color {
+        if controller.points[landmark] != nil { return Theme.pass }
+        return landmark == controller.active ? Theme.accent : Theme.textSecondary
     }
 }
 
@@ -201,12 +230,12 @@ struct ReticleLoupe: View {
             } else {
                 Color.black.opacity(0.35)
             }
-            Rectangle().fill(.yellow).frame(width: 1, height: 16)
-            Rectangle().fill(.yellow).frame(width: 16, height: 1)
+            Rectangle().fill(Theme.accent).frame(width: 1, height: 16)
+            Rectangle().fill(Theme.accent).frame(width: 16, height: 1)
         }
         .frame(width: diameter, height: diameter)
         .clipShape(Circle())
-        .overlay(Circle().stroke(.white, lineWidth: 3))
+        .overlay(Circle().stroke(Theme.accent, lineWidth: 3))
         .shadow(radius: 4)
     }
 
@@ -265,9 +294,17 @@ struct ARContainer: UIViewRepresentable {
     }
 }
 
-/// Yellow crosshair drawn at the center of its bounds (UIKit, so it can be
+/// Accent crosshair drawn at the center of its bounds (UIKit, so it can be
 /// centered exactly inside the AR view).
 final class CrosshairView: UIView {
+    /// Brand accent, adaptive to light/dark — matches Theme.accent.
+    private let accent = UIColor { tc in
+        UIColor(red: tc.userInterfaceStyle == .dark ? 0/255 : 0/255,
+                green: tc.userInterfaceStyle == .dark ? 224/255 : 184/255,
+                blue: tc.userInterfaceStyle == .dark ? 184/255 : 154/255,
+                alpha: 1)
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
@@ -278,8 +315,8 @@ final class CrosshairView: UIView {
     override func draw(_ rect: CGRect) {
         guard let ctx = UIGraphicsGetCurrentContext() else { return }
         let c = CGPoint(x: rect.midX, y: rect.midY)
-        UIColor.systemYellow.setStroke()
-        UIColor.systemYellow.setFill()
+        accent.setStroke()
+        accent.setFill()
         ctx.setLineWidth(2)
         let r: CGFloat = 14
         ctx.strokeEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))

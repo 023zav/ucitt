@@ -1,36 +1,63 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TT Fit Check — Info.plist
+
+  If you already have an Info.plist, you only need to MERGE these keys:
+    • CFBundleDisplayName  → renames the app to "TT Fit Check"
+    • UIAppFonts           → registers the Slipstream fonts (see Resources/Fonts)
+  Keep your existing NSCameraUsageDescription / capability keys if they differ.
+-->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>TT Checker</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
+    <string>TT Fit Check</string>
+    <key>CFBundleName</key>
+    <string>TT Fit Check</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    <key>CFBundleName</key>
-    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundlePackageType</key>
-    <string>APPL</string>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+
     <key>LSRequiresIPhoneOS</key>
     <true/>
-    <key>NSCameraUsageDescription</key>
-    <string>The camera photographs your time-trial bike with the printed marker to estimate cockpit measurements.</string>
     <key>UILaunchScreen</key>
-    <dict/>
-    <key>UIRequiredDeviceCapabilities</key>
-    <array>
-        <string>armv7</string>
-    </array>
+    <dict>
+        <key>UIColorName</key>
+        <string></string>
+    </dict>
+
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
+    </array>
+
+    <!-- Camera + ARKit usage -->
+    <key>NSCameraUsageDescription</key>
+    <string>TT Fit Check uses the camera to photograph and scan your TT bike so it can measure the cockpit against UCI limits.</string>
+
+    <!-- Slipstream fonts. Add the matching files under Resources/Fonts and make
+         sure they're members of the app target so they ship in the bundle. -->
+    <key>UIAppFonts</key>
+    <array>
+        <string>Archivo-Regular.ttf</string>
+        <string>Archivo-Medium.ttf</string>
+        <string>Archivo-SemiBold.ttf</string>
+        <string>Archivo-Bold.ttf</string>
+        <string>Archivo-ExtraBold.ttf</string>
+        <string>Archivo-Black.ttf</string>
+        <string>ArchivoExpanded-Bold.ttf</string>
+        <string>ArchivoExpanded-Black.ttf</string>
+        <string>JetBrainsMono-Regular.ttf</string>
+        <string>JetBrainsMono-Medium.ttf</string>
+        <string>JetBrainsMono-SemiBold.ttf</string>
+        <string>JetBrainsMono-Bold.ttf</string>
     </array>
 </dict>
 </plist>

@@ -73,64 +73,108 @@ struct TappingView: View {
     // MARK: Subviews
 
     private var promptBar: some View {
-        VStack(spacing: 4) {
-            Text("\(session.placedCount)/\(session.order.count) · \(session.active.title)")
-                .font(.headline)
+        VStack(spacing: 10) {
+            HStack {
+                Text("POINT \(min(session.placedCount + 1, session.order.count)) / \(session.order.count)")
+                    .font(Theme.mono(11, .bold))
+                    .tracking(1)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer()
+                Text(session.active.title.uppercased())
+                    .font(Theme.mono(11, .bold))
+                    .foregroundStyle(Theme.accent)
+            }
+            // Segmented progress
+            HStack(spacing: 5) {
+                ForEach(session.order) { landmark in
+                    Capsule()
+                        .fill(segmentColor(landmark))
+                        .frame(height: 4)
+                }
+            }
             Text(session.active.detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Text("Tap to set · drag to fine-tune · ? for help")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(Theme.body(12))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
+    }
+
+    private func segmentColor(_ landmark: Landmark) -> Color {
+        if session.points[landmark] != nil { return Theme.pass }
+        return landmark == session.active ? Theme.accent : Theme.surfaceRaised
     }
 
     private var controls: some View {
-        HStack {
-            ForEach(session.order) { landmark in
-                Button {
-                    session.activeIndex = session.order.firstIndex(of: landmark) ?? 0
-                } label: {
-                    Text(landmark.shortLabel)
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 8).padding(.vertical, 6)
-                        .background(chipColor(landmark), in: Capsule())
-                        .foregroundStyle(.white)
+        VStack(spacing: 10) {
+            HStack(spacing: 7) {
+                ForEach(session.order) { landmark in
+                    Button {
+                        session.activeIndex = session.order.firstIndex(of: landmark) ?? 0
+                    } label: {
+                        Text(landmark.shortLabel)
+                            .font(Theme.mono(10, .bold))
+                            .foregroundStyle(chipText(landmark))
+                            .padding(.horizontal, 8).padding(.vertical, 6)
+                            .background(chipFill(landmark))
+                            .overlay(Capsule().stroke(landmark == session.active ? Theme.accent : Color.clear, lineWidth: 1.5))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-        }
-        .padding(8)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .topTrailing) {
+
             if session.allPlaced {
-                Button("Results") {
+                Button {
                     flow.landmarkPx = session.points
                     flow.computeResultFromWheel()
                     flow.advance(to: .results)
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("SEE RESULTS").font(Theme.body(14, .heavy))
+                        Image(systemName: "arrow.right").font(.system(size: 14, weight: .heavy))
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(8)
+                .buttonStyle(SlipPrimary())
             }
         }
+        .padding(12)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
+    }
+
+    private func chipFill(_ landmark: Landmark) -> Color {
+        if session.points[landmark] != nil { return Theme.pass.opacity(0.18) }
+        return Theme.surfaceRaised
+    }
+    private func chipText(_ landmark: Landmark) -> Color {
+        if session.points[landmark] != nil { return Theme.pass }
+        return landmark == session.active ? Theme.accent : Theme.textSecondary
     }
 
     private func placedPoints(fit: ImageFit) -> some View {
         ForEach(session.order) { landmark in
             if let p = session.points[landmark] {
                 let v = fit.toView(p)
+                let isActive = landmark == session.active
+                let color = isActive ? Theme.accent : Theme.pass
                 ZStack {
-                    Circle()
-                        .fill(landmark == session.active ? Color.yellow : Color.cyan)
-                        .frame(width: 14, height: 14)
-                    Circle().stroke(.black, lineWidth: 1).frame(width: 14, height: 14)
+                    if isActive {
+                        Circle().fill(color.opacity(0.20)).frame(width: 28, height: 28)
+                    }
+                    Circle().fill(color).frame(width: 14, height: 14)
+                    Circle().stroke(.black.opacity(0.6), lineWidth: 1).frame(width: 14, height: 14)
                     Text(landmark.shortLabel)
-                        .font(.caption2.bold())
+                        .font(Theme.mono(9, .bold))
                         .foregroundStyle(.white)
-                        .offset(y: -16)
+                        .padding(.horizontal, 4).padding(.vertical, 1)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        .offset(y: -18)
                 }
                 .position(v)
                 .allowsHitTesting(false)
@@ -180,10 +224,5 @@ struct TappingView: View {
             if d <= threshold, best == nil || d < best!.1 { best = (landmark, d) }
         }
         return best?.0
-    }
-
-    private func chipColor(_ landmark: Landmark) -> Color {
-        if landmark == session.active { return .orange }
-        return session.points[landmark] != nil ? .green : .gray
     }
 }

@@ -24,7 +24,7 @@ struct WheelReferenceView: View {
     private let labels = ["rear wheel hub (center)",
                           "front wheel hub (center)",
                           "rear tyre's ground contact"]
-    private let colors: [Color] = [.orange, .cyan, .yellow]
+    private let dotColors: [Color] = [Theme.accent, Theme.check, Theme.fail]
 
     var body: some View {
         GeometryReader { geo in
@@ -60,6 +60,7 @@ struct WheelReferenceView: View {
                             Spacer()
                             Button { resetZoom() } label: {
                                 Image(systemName: "1.magnifyingglass")
+                                    .foregroundStyle(Theme.textPrimary)
                                     .padding(10)
                                     .background(.ultraThinMaterial, in: Circle())
                             }
@@ -101,62 +102,91 @@ struct WheelReferenceView: View {
     // MARK: Subviews
 
     private var promptBar: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
+            HStack {
+                Text("REF \(min(placedCount + 1, 3)) / 3")
+                    .font(Theme.mono(11, .bold))
+                    .tracking(1)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer()
+                Text("PINCH TO ZOOM")
+                    .font(Theme.mono(10))
+                    .foregroundStyle(Theme.textTertiary)
+            }
             Text("Tap the \(labels[min(active, 2)])")
-                .font(.headline)
-                .multilineTextAlignment(.center)
-            Text("\(placedCount)/3 placed · pinch to zoom · drag to pan / fine-tune")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                .font(Theme.body(15, .semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Drag to pan / fine-tune. The hub-to-hub line should be level.")
+                .font(Theme.body(12))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
     }
 
     private var controls: some View {
-        HStack(spacing: 10) {
-            ForEach(0..<3, id: \.self) { i in
-                Button { active = i } label: {
-                    Text(shortLabel(i))
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 8).padding(.vertical, 6)
-                        .background(chipColor(i), in: Capsule())
-                        .foregroundStyle(.white)
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                ForEach(0..<3, id: \.self) { i in
+                    Button { active = i } label: {
+                        Text(shortLabel(i))
+                            .font(Theme.mono(10, .bold))
+                            .foregroundStyle(chipText(i))
+                            .padding(.horizontal, 8).padding(.vertical, 6)
+                            .background(chipFill(i))
+                            .overlay(Capsule().stroke(i == active ? Theme.accent : Color.clear, lineWidth: 1.5))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
+                Spacer()
             }
-            Spacer()
+
             if allPlaced {
-                Button("Next") {
+                Button {
                     flow.rearHubPx = points[0]
                     flow.frontHubPx = points[1]
                     flow.groundContactPx = points[2]
                     flow.advance(to: .tapping)
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("CONTINUE").font(Theme.body(14, .heavy))
+                        Image(systemName: "arrow.right").font(.system(size: 14, weight: .heavy))
+                    }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(SlipPrimary())
             }
         }
-        .padding(10)
+        .padding(12)
         .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
     }
 
     private func shortLabel(_ i: Int) -> String {
         ["Rear hub", "Front hub", "Ground"][i]
     }
 
-    private func chipColor(_ i: Int) -> Color {
-        if points[i] != nil { return .green }
-        return i == active ? .orange : .gray
+    private func chipFill(_ i: Int) -> Color {
+        if points[i] != nil { return Theme.pass.opacity(0.18) }
+        return Theme.surfaceRaised
+    }
+    private func chipText(_ i: Int) -> Color {
+        if points[i] != nil { return Theme.pass }
+        return i == active ? Theme.accent : Theme.textSecondary
     }
 
     private func pointDots(fit: ImageFit) -> some View {
         ForEach(0..<3, id: \.self) { i in
             if let p = points[i] {
                 let v = fit.toView(p)
-                Circle().fill(colors[i])
+                Circle().fill(dotColors[i])
                     .frame(width: 14 / zoom, height: 14 / zoom)
-                    .overlay(Circle().stroke(.black, lineWidth: 1 / zoom))
+                    .overlay(Circle().stroke(.black.opacity(0.6), lineWidth: 1 / zoom))
                     .position(v)
                     .allowsHitTesting(false)
             }
@@ -170,7 +200,7 @@ struct WheelReferenceView: View {
             path.move(to: fit.toView(r))
             path.addLine(to: fit.toView(f))
         }
-        .stroke(.green.opacity(0.7), style: StrokeStyle(lineWidth: 1.5 / zoom, dash: [6 / zoom]))
+        .stroke(Theme.pass.opacity(0.8), style: StrokeStyle(lineWidth: 1.5 / zoom, dash: [6 / zoom]))
         .allowsHitTesting(false)
     }
 
